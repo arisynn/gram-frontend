@@ -56,6 +56,7 @@ interface ConversationViewProps {
   allChats?: ChatSummary[];
   isTyping?: boolean;
   onSendTyping?: () => void;
+  onStartCall?: (userId: string, userName: string, isVideo?: boolean) => void;
 }
 
 const COMMON_EMOJIS = ['👍', '❤️', '🔥', '😂', '👏', '🎉', '🚀', '💯', '🙏', '👀', '✨', '⚡'];
@@ -77,6 +78,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   allChats = [],
   isTyping = false,
   onSendTyping,
+  onStartCall,
 }) => {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
@@ -449,8 +451,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             <>
               <button
                 onClick={() => {
-                  setIsVideoCall(false);
-                  setShowCallModal(true);
+                  if (onStartCall) {
+                    onStartCall(chat.id, chat.title, false);
+                  } else {
+                    setIsVideoCall(false);
+                    setShowCallModal(true);
+                  }
                 }}
                 className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white"
                 title="Panggilan Suara"
@@ -460,8 +466,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
               <button
                 onClick={() => {
-                  setIsVideoCall(true);
-                  setShowCallModal(true);
+                  if (onStartCall) {
+                    onStartCall(chat.id, chat.title, true);
+                  } else {
+                    setIsVideoCall(true);
+                    setShowCallModal(true);
+                  }
                 }}
                 className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white"
                 title="Panggilan Video"

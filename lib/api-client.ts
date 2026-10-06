@@ -371,6 +371,20 @@ class ApiClient {
     });
   }
 
+  public async acceptCall(callId: string, accessHash: string, isVideo: boolean = false): Promise<any> {
+    return this.request<any>('/api/calls/accept', {
+      method: 'POST',
+      body: JSON.stringify({ callId, accessHash, isVideo }),
+    });
+  }
+
+  public async confirmCall(callId: string, accessHash: string, gBBase64?: string): Promise<any> {
+    return this.request<any>('/api/calls/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ callId, accessHash, gBBase64 }),
+    });
+  }
+
   public async discardCall(callId: string, duration: number = 0, isVideo: boolean = false): Promise<any> {
     return this.request<any>('/api/calls/discard', {
       method: 'POST',

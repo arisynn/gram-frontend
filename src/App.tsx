@@ -562,6 +562,7 @@ export default function GramApp() {
                 };
               });
             } else if (eventType === 'phone_call_update' && data) {
+              window.dispatchEvent(new CustomEvent('telegram_ws_event', { detail: { eventType, data } }));
               const status = data.status;
               if (status === 'PhoneCallRequested' || status === 'PhoneCallWaiting') {
                 const peerId = data.participantId || data.call?.adminId;
@@ -1018,6 +1019,17 @@ export default function GramApp() {
                 isTyping={Boolean(selectedChat && typingChats[selectedChat.id])}
                 onSendTyping={() => {
                   if (selectedChat) apiClient.sendTyping(selectedChat.id).catch(() => {});
+                }}
+                onStartCall={(userId: string, userName: string, isVideo?: boolean) => {
+                  setContactCallModal({
+                    isOpen: true,
+                    contact: {
+                      id: userId,
+                      firstName: userName,
+                      username: selectedChat?.username,
+                    },
+                    isVideo: Boolean(isVideo),
+                  });
                 }}
               />
             ) : (
