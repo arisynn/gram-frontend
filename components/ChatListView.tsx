@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
-  PenSquare, 
+  Plus, 
   Users, 
   Landmark, 
   Bookmark, 
@@ -15,13 +15,16 @@ import {
   Globe,
   MoreVertical,
   Check,
-  CheckCheck
+  CheckCheck,
+  X,
+  Filter
 } from 'lucide-react';
-import type { ChatSummary, GlobalSearchResult } from '@/shared/types';
+import type { ChatSummary, GlobalSearchResult, TelegramContact } from '@/shared/types';
 import { apiClient } from '@/lib/api-client';
 
 interface ChatListViewProps {
   chats: ChatSummary[];
+  contacts?: TelegramContact[];
   selectedChatId?: string | null;
   onSelectChat: (chat: ChatSummary) => void;
   onOpenNewChat?: () => void;
@@ -31,10 +34,11 @@ interface ChatListViewProps {
   loading?: boolean;
 }
 
-type FilterCategory = 'all' | 'users' | 'groups' | 'channels' | 'unread';
+type FilterCategory = 'all' | 'unread' | 'users' | 'groups' | 'channels';
 
 export const ChatListView: React.FC<ChatListViewProps> = ({
   chats,
+  contacts = [],
   selectedChatId,
   onSelectChat,
   onOpenNewChat,
@@ -44,15 +48,15 @@ export const ChatListView: React.FC<ChatListViewProps> = ({
   loading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchBar, setShowSearchBar] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all');
   const [avatarErrors, setAvatarErrors] = useState<Record<string, boolean>>({});
   const [activeMenuChatId, setActiveMenuChatId] = useState<string | null>(null);
 
-  // Global search results state
+  // Global search results
   const [globalResults, setGlobalResults] = useState<GlobalSearchResult | null>(null);
   const [searchingGlobal, setSearchingGlobal] = useState(false);
 
-  // Debounced global search
   useEffect(() => {
     const q = searchQuery.trim();
     if (!q || q.length < 3) {
@@ -61,375 +65,300 @@ export const ChatListView: React.FC<ChatListViewProps> = ({
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setSearchingGlobal(true);
-      try {
-        const results = await apiClient.searchGlobal(q);
-        setGlobalResults(results);
-      } catch {
-        setGlobalResults(null);
-      } finally {
-        setSearchingGlobal(false);
-      }
-    }, 400);
+    setSearchingGlobal(true);
+    const timer = setTimeout(() => {
+      apiClient.searchGlobal(q)
+        .then((res) => setGlobalResults(res))
+        .catch(() => setGlobalResults(null))
+        .finally(() => setSearchingGlobal(false));
+    }, 450);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const formatTimestamp = (unixSeconds?: number) => {
-    if (!unixSeconds) return '';
-    const date = new Date(unixSeconds * 1000);
+  const formatTime = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
     const now = new Date();
-    const isToday =
-      date.getDate() === now.getDate() &&
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear();
+    const isToday = date.toDateString() === now.toDateString();
 
     if (isToday) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     }
-
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const isYesterday =
-      date.getDate() === yesterday.getDate() &&
-      date.getMonth() === yesterday.getMonth() &&
-      date.getFullYear() === yesterday.getFullYear();
-
-    if (isYesterday) return 'Kemarin';
-
     return date.toLocaleDateString([], { day: 'numeric', month: 'short' });
   };
 
-  const filteredChats = chats.filter((c) => {
-    if (c.isArchived) return false;
-
-    // Filter by Category Tab
-    if (categoryFilter === 'users' && c.type !== 'user' && c.type !== 'saved' && c.type !== 'bot') return false;
-    if (categoryFilter === 'groups' && c.type !== 'group') return false;
-    if (categoryFilter === 'channels' && c.type !== 'channel') return false;
-    if (categoryFilter === 'unread' && (c.unreadCount || 0) <= 0) return false;
-
-    // Filter by Search Query
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
-    if (q.startsWith('@')) {
-      const u = q.replace(/^@/, '');
-      return (c.username && c.username.toLowerCase().includes(u)) || c.title.toLowerCase().includes(u);
-    }
-    return (
-      c.title.toLowerCase().includes(q) ||
-      (c.username && c.username.toLowerCase().includes(q)) ||
-      (c.lastMessage?.text && c.lastMessage.text.toLowerCase().includes(q))
-    );
-  });
-
-  const sortedChats = [...filteredChats].sort((a, b) => {
-    if (a.isPinned && !b.isPinned) return -1;
-    if (!a.isPinned && b.isPinned) return 1;
-    return (b.lastMessage?.date || 0) - (a.lastMessage?.date || 0);
-  });
-
-  const renderAvatar = (chat: ChatSummary) => {
-    const avatarUrl = apiClient.getAvatarUrl(chat.id);
-    const hasError = avatarErrors[chat.id];
-
-    if (avatarUrl && !hasError && chat.type !== 'saved') {
+  // Filter chats by folder & search
+  const filteredChats = chats
+    .filter((c) => {
+      if (categoryFilter === 'unread') return c.unreadCount > 0;
+      if (categoryFilter === 'users') return c.type === 'user';
+      if (categoryFilter === 'groups') return c.type === 'group';
+      if (categoryFilter === 'channels') return c.type === 'channel';
+      return true;
+    })
+    .filter((c) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
       return (
-        <img
-          src={avatarUrl}
-          alt={chat.title}
-          className="w-full h-full object-cover"
-          onError={() => setAvatarErrors((prev) => ({ ...prev, [chat.id]: true }))}
-        />
+        c.title.toLowerCase().includes(q) ||
+        (c.username && c.username.toLowerCase().includes(q)) ||
+        (c.lastMessage?.text && c.lastMessage.text.toLowerCase().includes(q))
       );
-    }
+    })
+    .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (b.lastMessage?.date || 0) - (a.lastMessage?.date || 0);
+    });
 
-    if (chat.type === 'saved') {
-      return <Bookmark className="w-4 h-4 text-black dark:text-white" />;
-    }
-    if (chat.type === 'channel') {
-      return <Landmark className="w-4 h-4 text-black dark:text-white" />;
-    }
-    if (chat.type === 'group') {
-      return <Users className="w-4 h-4 text-black dark:text-white" />;
-    }
-    if (chat.type === 'bot') {
-      return <Bot className="w-4 h-4 text-black dark:text-white" />;
-    }
-
-    const firstLetter = chat.title ? chat.title.trim().charAt(0).toUpperCase() : '?';
-    return <span className="font-bold text-xs text-black dark:text-white">{firstLetter}</span>;
-  };
+  // Story / Quick contacts row
+  const quickContacts = contacts.length > 0 
+    ? contacts.slice(0, 10) 
+    : chats.filter((c) => c.type === 'user').slice(0, 8).map((c) => ({
+        id: c.id,
+        firstName: c.title.split(' ')[0] || c.title,
+        username: c.username,
+        avatarUrl: c.avatarUrl,
+      }));
 
   return (
-    <div className="relative w-full h-full flex flex-col bg-white dark:bg-black font-mono select-none overflow-hidden animate-fadeIn">
-      {/* Search Input Bar */}
-      <div className="p-2 border-b border-black dark:border-white bg-neutral-50 dark:bg-neutral-950 shrink-0">
-        <div className="flex items-center gap-2 border border-black dark:border-white px-2.5 py-1.5 bg-white dark:bg-black">
-          <Search className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari obrolan, @username, teks..."
-            className="w-full text-xs bg-transparent text-black dark:text-white placeholder-neutral-500 focus:outline-hidden"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setGlobalResults(null);
-              }}
-              className="text-[10px] text-neutral-400 hover:text-black dark:hover:text-white cursor-pointer font-bold shrink-0"
-            >
-              [X]
-            </button>
-          )}
-        </div>
+    <div className="w-full h-full flex flex-col bg-white dark:bg-neutral-950 font-sans select-none overflow-hidden text-neutral-900 dark:text-neutral-100">
+      
+      {/* 1. Header: "Mengobrol" Title + Search Toggle Button (Matching Mockup 1:1) */}
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between shrink-0">
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+          Mengobrol
+        </h1>
+        <button
+          onClick={() => {
+            setShowSearchBar(!showSearchBar);
+            if (showSearchBar) setSearchQuery('');
+          }}
+          className={`p-2 rounded-full cursor-pointer transition-colors ${
+            showSearchBar 
+              ? 'bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white' 
+              : 'hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-600 dark:text-neutral-400'
+          }`}
+          title="Cari"
+        >
+          <Search className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Category Filter Tabs */}
-      <div className="px-2 py-1.5 border-b border-black dark:border-white bg-white dark:bg-black flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0 text-[11px] font-bold">
-        {[
-          { id: 'all', label: 'Semua' },
-          { id: 'users', label: 'Pribadi' },
-          { id: 'groups', label: 'Grup' },
-          { id: 'channels', label: 'Channel' },
-          { id: 'unread', label: 'Belum Dibaca' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setCategoryFilter(tab.id as FilterCategory)}
-            className={`px-2 py-0.5 border transition-colors cursor-pointer shrink-0 ${
-              categoryFilter === tab.id
-                ? 'border-black dark:border-white bg-black dark:bg-white text-white dark:text-black'
-                : 'border-transparent text-neutral-500 hover:text-black dark:hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Chat list items */}
-      <div className="flex-1 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
-        {loading && chats.length === 0 && (
-          <div className="p-4 space-y-3 animate-pulse">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-10 h-10 border border-neutral-300 dark:border-neutral-700 bg-neutral-200 dark:bg-neutral-800 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="w-1/3 h-3 bg-neutral-200 dark:bg-neutral-800" />
-                  <div className="w-3/4 h-2.5 bg-neutral-100 dark:bg-neutral-900" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && sortedChats.length === 0 && !searchQuery && (
-          <div className="p-8 text-center text-xs text-neutral-500 flex flex-col items-center justify-center gap-3">
-            <div className="w-12 h-12 border border-black dark:border-white flex items-center justify-center text-xl bg-neutral-50 dark:bg-neutral-950">
-              ✉
-            </div>
-            <span>[ Belum ada daftar percakapan aktif ]</span>
-            {onOpenNewChat && (
+      {/* Search Input Bar (when toggled or active) */}
+      {showSearchBar && (
+        <div className="px-5 pb-3 animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="flex items-center gap-2 bg-neutral-100 dark:bg-neutral-900 px-3.5 py-2 rounded-2xl border border-neutral-200/60 dark:border-neutral-800">
+            <Search className="w-4 h-4 text-neutral-400 shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari obrolan, kontak, atau pesan..."
+              autoFocus
+              className="w-full bg-transparent text-sm text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-hidden"
+            />
+            {searchQuery && (
               <button
-                onClick={onOpenNewChat}
-                className="mt-1 px-3 py-1.5 border border-black dark:border-white text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+                onClick={() => setSearchQuery('')}
+                className="text-neutral-400 hover:text-neutral-600 cursor-pointer p-0.5"
               >
-                + Mulai Obrolan Baru
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {!loading && sortedChats.length === 0 && searchQuery && (
-          <div className="p-4 text-center text-xs text-neutral-500">
-            [ Tidak ditemukan obrolan lokal yang cocok ]
+      {/* 2. Story / Quick Contacts Avatar Carousel (Matching Mockup 1:1) */}
+      {!searchQuery && (
+        <div className="px-5 py-2.5 border-b border-neutral-100 dark:border-neutral-900 shrink-0">
+          <div className="flex items-center gap-4 overflow-x-auto no-scrollbar py-1">
+            {/* First Item: [+] Add Contact / Start Chat */}
+            <div 
+              onClick={onOpenNewChat}
+              className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
+            >
+              <div className="w-14 h-14 rounded-full border-2 border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-400 group-hover:border-black dark:group-hover:border-white group-hover:text-black dark:group-hover:text-white transition-colors bg-neutral-50 dark:bg-neutral-900">
+                <Plus className="w-5 h-5" />
+              </div>
+              <span className="text-[11px] text-neutral-500 font-medium truncate max-w-[56px] text-center">
+                Baru
+              </span>
+            </div>
+
+            {/* Quick Contacts Avatars */}
+            {quickContacts.map((contact) => {
+              const avatar = contact.avatarUrl || apiClient.getAvatarUrl(contact.id);
+              const hasErr = avatarErrors[contact.id];
+              const shortName = contact.firstName || 'User';
+
+              return (
+                <div
+                  key={`quick_${contact.id}`}
+                  onClick={() => {
+                    const existingChat = chats.find((c) => String(c.id) === String(contact.id));
+                    if (existingChat) onSelectChat(existingChat);
+                    else {
+                      onSelectChat({
+                        id: contact.id,
+                        title: `${contact.firstName || ''} ${(contact as any).lastName || ''}`.trim() || 'User',
+                        type: 'user',
+                        username: contact.username,
+                        unreadCount: 0,
+                      });
+                    }
+                  }}
+                  className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
+                >
+                  <div className="relative">
+                    <div className="w-14 h-14 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center font-bold text-base text-neutral-700 dark:text-neutral-200 group-hover:ring-2 group-hover:ring-blue-500 transition-all">
+                      {avatar && !hasErr ? (
+                        <img
+                          src={avatar}
+                          alt={shortName}
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarErrors((p) => ({ ...p, [contact.id]: true }))}
+                        />
+                      ) : (
+                        shortName.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    {/* Live Online Green Dot */}
+                    <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-neutral-950 rounded-full" />
+                  </div>
+                  <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 truncate max-w-[60px] text-center">
+                    {shortName}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Section Header: "Chats" with filter tabs */}
+      <div className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
+        <h2 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <span>Chats</span>
+          <span className="text-xs font-normal text-neutral-400">({filteredChats.length})</span>
+        </h2>
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1 overflow-x-auto text-xs">
+          {(['all', 'unread', 'groups', 'channels'] as FilterCategory[]).map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium cursor-pointer transition-colors ${
+                categoryFilter === cat
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-black'
+                  : 'text-neutral-500 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              {cat === 'all' ? 'Semua' : cat === 'unread' ? 'Belum Dibaca' : cat === 'groups' ? 'Grup' : 'Channel'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. Chat List Cards (Matching Mockup 1:1) */}
+      <div className="flex-1 overflow-y-auto px-2 divide-y divide-neutral-100/60 dark:divide-neutral-900/60">
+        {loading && chats.length === 0 && (
+          <div className="p-8 text-center text-xs text-neutral-400">
+            [ Memuat obrolan Telegram... ]
           </div>
         )}
 
-        {/* Local matching chats */}
-        {sortedChats.map((chat) => {
+        {!loading && filteredChats.length === 0 && (
+          <div className="p-10 text-center text-neutral-400 space-y-2">
+            <MessageSquare className="w-8 h-8 mx-auto opacity-30" />
+            <p className="text-xs">Tidak ada obrolan ditemukan</p>
+          </div>
+        )}
+
+        {filteredChats.map((chat) => {
           const isSelected = selectedChatId === chat.id;
-          const isMenuOpen = activeMenuChatId === chat.id;
+          const avatarUrl = chat.avatarUrl || apiClient.getAvatarUrl(chat.id);
+          const hasAvatarError = avatarErrors[chat.id];
+          const hasUnread = chat.unreadCount > 0;
 
           return (
             <div
               key={chat.id}
               onClick={() => onSelectChat(chat)}
-              className={`w-full px-3 py-2.5 flex items-center gap-3 transition-colors text-left cursor-pointer relative group ${
+              className={`w-full px-3 py-3 flex items-center gap-3.5 rounded-2xl cursor-pointer transition-all ${
                 isSelected
-                  ? 'bg-neutral-100 dark:bg-neutral-900 border-l-4 border-l-black dark:border-l-white'
-                  : 'hover:bg-neutral-50 dark:hover:bg-neutral-950'
+                  ? 'bg-blue-50/80 dark:bg-neutral-900/90'
+                  : 'hover:bg-neutral-50 dark:hover:bg-neutral-900/40'
               }`}
             >
-              {/* Square Avatar */}
-              <div className="w-10 h-10 border border-black dark:border-white flex items-center justify-center bg-white dark:bg-black shrink-0 overflow-hidden">
-                {renderAvatar(chat)}
-              </div>
-
-              {/* Chat info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 leading-tight">
-                  <div className="font-bold text-xs truncate text-black dark:text-white flex items-center gap-1.5">
-                    {chat.isPinned && <Pin className="w-3 h-3 text-black dark:text-white shrink-0 fill-current" />}
-                    <span className="truncate">{chat.title}</span>
-                  </div>
-                  <div className="text-[10px] text-neutral-500 shrink-0">
-                    {formatTimestamp(chat.lastMessage?.date)}
-                  </div>
+              {/* Circular Avatar (w-12 h-12) */}
+              <div className="relative shrink-0">
+                <div className="w-12 h-12 rounded-full overflow-hidden border border-neutral-200/80 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center font-bold text-sm text-neutral-700 dark:text-neutral-300">
+                  {avatarUrl && !hasAvatarError ? (
+                    <img
+                      src={avatarUrl}
+                      alt={chat.title}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarErrors((p) => ({ ...p, [chat.id]: true }))}
+                    />
+                  ) : chat.type === 'saved' ? (
+                    <Bookmark className="w-5 h-5 text-blue-500" />
+                  ) : chat.type === 'group' ? (
+                    <Users className="w-5 h-5 text-emerald-500" />
+                  ) : chat.type === 'channel' ? (
+                    <Landmark className="w-5 h-5 text-purple-500" />
+                  ) : chat.type === 'bot' ? (
+                    <Bot className="w-5 h-5 text-amber-500" />
+                  ) : (
+                    chat.title.charAt(0).toUpperCase()
+                  )}
                 </div>
 
-                <div className="flex items-center justify-between gap-2 mt-1 leading-tight">
-                  <div className="text-[11px] text-neutral-600 dark:text-neutral-400 truncate flex items-center gap-1">
+                {chat.isPinned && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-black flex items-center justify-center shadow-xs">
+                    <Pin className="w-2.5 h-2.5 rotate-45" />
+                  </span>
+                )}
+              </div>
+
+              {/* Chat Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-0.5">
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate pr-2">
+                    {chat.title}
+                  </h3>
+                  <span className="text-[11px] text-neutral-400 shrink-0 font-medium">
+                    {formatTime(chat.lastMessage?.date)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate pr-2 flex items-center gap-1 font-normal">
                     {chat.lastMessage?.isOutgoing && (
-                      <span className="shrink-0">
-                        <Check className="w-3 h-3 inline text-neutral-400" />
+                      <span className="text-blue-500 inline-flex">
+                        <CheckCheck className="w-3.5 h-3.5" />
                       </span>
                     )}
                     <span className="truncate">
-                      {chat.lastMessage?.text || (chat.username ? `@${chat.username}` : 'Belum ada pesan')}
+                      {chat.lastMessage?.text || (chat.lastMessage?.mediaType ? `[${chat.lastMessage.mediaType}]` : 'Belum ada pesan')}
                     </span>
-                  </div>
+                  </p>
 
-                  {chat.unreadCount > 0 && (
-                    <div className="min-w-4 px-1 py-0.5 bg-black dark:bg-white text-white dark:text-black font-bold text-[10px] text-center leading-none shrink-0">
-                      {chat.unreadCount}
-                    </div>
+                  {/* Circular Blue Unread Badge (Matching Mockup: Blue circle with white number) */}
+                  {hasUnread && (
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center shadow-xs">
+                      {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                    </span>
                   )}
                 </div>
-              </div>
-
-              {/* Chat options button (hover trigger) */}
-              <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => setActiveMenuChatId(isMenuOpen ? null : chat.id)}
-                  className="w-6 h-6 border border-transparent hover:border-black dark:hover:border-white opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-neutral-500 hover:text-black dark:hover:text-white"
-                  title="Opsi Obrolan"
-                >
-                  <MoreVertical className="w-3.5 h-3.5" />
-                </button>
-
-                {isMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setActiveMenuChatId(null)}
-                    />
-                    <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-black border-2 border-black dark:border-white p-1 shadow-lg z-50 text-[11px] font-mono">
-                      {onPinChat && (
-                        <button
-                          onClick={() => {
-                            setActiveMenuChatId(null);
-                            onPinChat(chat.id, !chat.isPinned);
-                          }}
-                          className="w-full px-2 py-1.5 text-left flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
-                        >
-                          {chat.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                          <span>{chat.isPinned ? 'Lepas Semat' : 'Sematkan'}</span>
-                        </button>
-                      )}
-
-                      {onArchiveChat && (
-                        <button
-                          onClick={() => {
-                            setActiveMenuChatId(null);
-                            onArchiveChat(chat.id, !chat.isArchived);
-                          }}
-                          className="w-full px-2 py-1.5 text-left flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
-                        >
-                          <Archive className="w-3.5 h-3.5" />
-                          <span>Arsipkan</span>
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
               </div>
             </div>
           );
         })}
-
-        {/* Global Search Results Section */}
-        {searchQuery.trim().length >= 3 && (
-          <div className="p-2 bg-neutral-100 dark:bg-neutral-900 border-t-2 border-black dark:border-white">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-2 px-1">
-              <Globe className="w-3 h-3" />
-              <span>Pencarian Global Telegram</span>
-              {searchingGlobal && <span className="animate-pulse">[Mencari...]</span>}
-            </div>
-
-            {globalResults?.publicEntity && (
-              <div
-                onClick={() => onSelectGlobalEntity && onSelectGlobalEntity(globalResults.publicEntity)}
-                className="p-2 border border-black dark:border-white bg-white dark:bg-black flex items-center gap-2.5 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-950 mb-2"
-              >
-                <div className="w-8 h-8 border border-black dark:border-white flex items-center justify-center font-bold text-xs bg-neutral-100 dark:bg-neutral-900 shrink-0">
-                  {globalResults.publicEntity.type === 'channel' ? (
-                    <Landmark className="w-4 h-4" />
-                  ) : (
-                    <Users className="w-4 h-4" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-xs truncate">
-                    {globalResults.publicEntity.title}
-                  </div>
-                  <div className="text-[10px] text-neutral-500 truncate">
-                    @{globalResults.publicEntity.username} · {globalResults.publicEntity.type}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {globalResults?.users && globalResults.users.length > 0 && (
-              <div className="space-y-1">
-                {globalResults.users.slice(0, 3).map((u) => (
-                  <div
-                    key={u.id}
-                    onClick={() => onSelectGlobalEntity && onSelectGlobalEntity(u)}
-                    className="p-2 border border-black dark:border-white bg-white dark:bg-black flex items-center gap-2.5 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-950"
-                  >
-                    <div className="w-7 h-7 border border-black dark:border-white flex items-center justify-center font-bold text-xs bg-white dark:bg-black shrink-0">
-                      {u.firstName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-xs truncate">
-                        {u.firstName} {u.lastName || ''}
-                      </div>
-                      <div className="text-[10px] text-neutral-500 truncate">
-                        {u.username ? `@${u.username}` : (u.phone || 'Telegram User')}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!searchingGlobal &&
-              !globalResults?.publicEntity &&
-              (!globalResults?.users || globalResults.users.length === 0) && (
-                <div className="p-2 text-center text-[10px] text-neutral-500">
-                  [ Tidak ada hasil pencarian global untuk "{searchQuery}" ]
-                </div>
-              )}
-          </div>
-        )}
       </div>
-
-      {/* Floating Compose Button */}
-      {onOpenNewChat && (
-        <button
-          onClick={onOpenNewChat}
-          className="absolute bottom-4 right-4 w-11 h-11 border-2 border-black dark:border-white bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,1)] hover:opacity-90 transition-opacity cursor-pointer z-10"
-          title="Tulis Pesan / Cari Kontak"
-        >
-          <PenSquare className="w-5 h-5" />
-        </button>
-      )}
     </div>
   );
 };

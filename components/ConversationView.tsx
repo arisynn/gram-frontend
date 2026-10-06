@@ -2,42 +2,35 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ArrowLeft, 
+  ChevronLeft, 
   MoreVertical, 
-  Paperclip, 
+  Plus, 
+  Search, 
+  Sparkles, 
+  Mic, 
+  MicOff, 
+  Square, 
+  Send, 
+  X, 
+  Check, 
+  CheckCheck, 
+  FileText, 
+  Download, 
+  Play, 
+  Pause, 
+  Volume2,
   Users,
   Landmark,
   Bookmark,
-  Reply,
-  Edit2,
-  Trash2,
-  Copy,
-  Forward,
-  Download,
-  X,
-  FileText,
-  Video,
-  Check,
-  CheckCheck,
-  MessageSquare,
-  Phone,
-  Video as VideoCallIcon,
-  Search,
-  ChevronUp,
-  ChevronDown,
-  Smile,
-  Mic,
-  MicOff,
-  Square,
-  Play,
-  Pause,
-  Volume2
+  Pin
 } from 'lucide-react';
-import type { ChatSummary, ChatMessage } from '@/shared/types';
+import type { ChatSummary, ChatMessage, StickerItem } from '@/shared/types';
 import { apiClient } from '@/lib/api-client';
 import { FormattedText } from './FormattedText';
+import { MessageActionSheet } from './MessageActionSheet';
+import { PinnedMessageBanner } from './PinnedMessageBanner';
+import { StickerPicker } from './StickerPicker';
 import { ChannelCommentsModal } from './ChannelCommentsModal';
-import { CallModal } from './CallModal';
 
 interface ConversationViewProps {
   chat: ChatSummary;
@@ -58,8 +51,6 @@ interface ConversationViewProps {
   onSendTyping?: () => void;
   onStartCall?: (userId: string, userName: string, isVideo?: boolean) => void;
 }
-
-const COMMON_EMOJIS = ['👍', '❤️', '🔥', '😂', '👏', '🎉', '🚀', '💯', '🙏', '👀', '✨', '⚡'];
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
   chat,
@@ -83,172 +74,54 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Message actions state
+  // Modals & Action Sheet
+  const [activeSheetMsg, setActiveSheetMsg] = useState<ChatMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
   const [editingTarget, setEditingTarget] = useState<ChatMessage | null>(null);
-  const [selectedMsgForMenu, setSelectedMsgForMenu] = useState<ChatMessage | null>(null);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<number | null>(null);
   const [forwardModalMsg, setForwardModalMsg] = useState<ChatMessage | null>(null);
   const [commentsPost, setCommentsPost] = useState<ChatMessage | null>(null);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
-  // In-Chat Search State
-  const [showInChatSearch, setShowInChatSearch] = useState(false);
-  const [inChatSearchQuery, setInChatSearchQuery] = useState('');
-  const [searchMatches, setSearchMatches] = useState<number[]>([]);
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  // In-chat search
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Voice Note Recording State
+  // Voice recording
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<any>(null);
 
-  // Quick Emoji Picker Popover
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  // Call modal state
-  const [showCallModal, setShowCallModal] = useState(false);
-  const [isVideoCall, setIsVideoCall] = useState(false);
-
-  // Media preview modal state
-  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
-  const [copiedNotice, setCopiedNotice] = useState(false);
-
-  // Audio Playback state
+  // Audio Playback
   const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const prevChatIdRef = useRef<string>(chat.id);
 
-  const scrollToBottomInstant = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-    } else if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-    }
-  };
+  // Find pinned message
+  const pinnedMessage = messages.slice().reverse().find((m) => m.isPinned);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
-    scrollToBottomInstant();
-    const timer = setTimeout(scrollToBottomInstant, 50);
-    return () => clearTimeout(timer);
-  }, [chat.id]);
-
-  useEffect(() => {
-    if (!editingTarget) {
-      if (prevChatIdRef.current !== chat.id) {
-        prevChatIdRef.current = chat.id;
-        scrollToBottomInstant();
-      } else {
-        scrollToBottomInstant();
-      }
+    if (!highlightedMsgId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages.length, editingTarget, chat.id]);
+  }, [messages.length]);
 
-  // Handle In-Chat Search filtering
-  useEffect(() => {
-    if (!inChatSearchQuery.trim()) {
-      setSearchMatches([]);
-      setCurrentMatchIndex(0);
-      return;
+  // Jump to specific message (e.g. from pinned banner or reply quote)
+  const handleJumpToMessage = (msgId: number) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMsgId(msgId);
+      setTimeout(() => setHighlightedMsgId(null), 2000);
     }
-
-    const q = inChatSearchQuery.toLowerCase().trim();
-    const matches: number[] = [];
-    messages.forEach((m) => {
-      if (m.text && m.text.toLowerCase().includes(q)) {
-        matches.push(m.id);
-      }
-    });
-
-    setSearchMatches(matches);
-    setCurrentMatchIndex(matches.length > 0 ? 0 : 0);
-
-    if (matches.length > 0) {
-      jumpToMessage(matches[0]);
-    }
-  }, [inChatSearchQuery, messages]);
-
-  const handleNextSearchMatch = () => {
-    if (searchMatches.length === 0) return;
-    const next = (currentMatchIndex + 1) % searchMatches.length;
-    setCurrentMatchIndex(next);
-    jumpToMessage(searchMatches[next]);
-  };
-
-  const handlePrevSearchMatch = () => {
-    if (searchMatches.length === 0) return;
-    const prev = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
-    setCurrentMatchIndex(prev);
-    jumpToMessage(searchMatches[prev]);
-  };
-
-  // Voice Note Recording functions
-  const startVoiceRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-        }
-      };
-
-      recorder.start();
-      setIsRecordingVoice(true);
-      setRecordingSeconds(0);
-
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingSeconds((s) => s + 1);
-      }, 1000);
-    } catch (err) {
-      alert('Tidak dapat mengakses mikrofon.');
-    }
-  };
-
-  const cancelVoiceRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-    }
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    setIsRecordingVoice(false);
-    setRecordingSeconds(0);
-    audioChunksRef.current = [];
-  };
-
-  const finishAndSendVoiceRecording = () => {
-    if (!mediaRecorderRef.current) return;
-
-    mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/ogg; codecs=opus' });
-      const audioFile = new File([audioBlob], `voice_message_${Date.now()}.ogg`, {
-        type: 'audio/ogg',
-      });
-
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      setIsRecordingVoice(false);
-      setRecordingSeconds(0);
-
-      try {
-        setSending(true);
-        await onSendMedia(audioFile, undefined, replyTarget?.id);
-        setReplyTarget(null);
-      } catch (err: any) {
-        alert(err.message || 'Gagal mengirim pesan suara.');
-      } finally {
-        setSending(false);
-      }
-    };
-
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
   };
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -268,10 +141,42 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         setReplyTarget(null);
       }
     } catch (err: any) {
-      console.error('Failed to send message:', err);
       setInputText(textToSend);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSelectSticker = async (sticker: StickerItem) => {
+    setSending(true);
+    try {
+      await apiClient.sendSticker(chat.id, sticker.id, sticker.accessHash, replyTarget?.id);
+      setReplyTarget(null);
+    } catch (err) {
+      console.error('Failed to send sticker:', err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSendReaction = async (emoji: string) => {
+    if (!activeSheetMsg) return;
+    try {
+      await apiClient.sendReaction(chat.id, activeSheetMsg.id, emoji);
+    } catch (err) {
+      console.error('Failed to send reaction:', err);
+    }
+  };
+
+  const handleTogglePin = async (msg: ChatMessage) => {
+    try {
+      if (msg.isPinned) {
+        await apiClient.unpinMessage(chat.id, msg.id);
+      } else {
+        await apiClient.pinMessage(chat.id, msg.id);
+      }
+    } catch (err) {
+      console.error('Failed to pin/unpin message:', err);
     }
   };
 
@@ -292,832 +197,565 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
-  const handleCopyText = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedNotice(true);
-    setSelectedMsgForMenu(null);
-    setTimeout(() => setCopiedNotice(false), 2000);
-  };
+  // Start voice recording
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (e.currentTarget.scrollTop === 0 && hasMoreHistory && !loadingMessages) {
-      onLoadMoreHistory();
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.start(100);
+      setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+    } catch {
+      alert('Izin mikrofon diperlukan untuk merekam pesan suara.');
     }
   };
 
-  const formatMessageTime = (unixTime: number) => {
-    if (!unixTime) return '';
-    const ms = unixTime < 10000000000 ? unixTime * 1000 : unixTime;
-    const d = new Date(ms);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  };
+  // Stop and send voice recording
+  const stopVoiceRecording = async () => {
+    if (!mediaRecorderRef.current) return;
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
 
-  const jumpToMessage = (msgId: number) => {
-    const elem = document.getElementById(`msg-${msgId}`);
-    if (elem) {
-      elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      elem.classList.add('ring-2', 'ring-black', 'dark:ring-white');
-      setTimeout(() => {
-        elem.classList.remove('ring-2', 'ring-black', 'dark:ring-white');
-      }, 2000);
-    }
-  };
+    mediaRecorderRef.current.onstop = async () => {
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/ogg; codecs=opus' });
+      const audioFile = new File([audioBlob], `voice_${Date.now()}.ogg`, { type: 'audio/ogg' });
 
-  const [avatarError, setAvatarError] = useState(false);
-  const lastTypingSentRef = useRef<number>(0);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
-    const now = Date.now();
-    if (onSendTyping && now - lastTypingSentRef.current > 3000) {
-      lastTypingSentRef.current = now;
-      onSendTyping();
-    }
-  };
-
-  const getChatAvatar = () => {
-    const avatarUrl = apiClient.getAvatarUrl(chat.id);
-    if (avatarUrl && !avatarError && chat.type !== 'saved') {
-      return (
-        <img
-          src={avatarUrl}
-          alt={chat.title}
-          className="w-full h-full object-cover"
-          onError={() => setAvatarError(true)}
-        />
-      );
-    }
-    if (chat.type === 'saved') return <Bookmark className="w-4 h-4 text-black dark:text-white" />;
-    if (chat.type === 'channel') return <Landmark className="w-4 h-4 text-black dark:text-white" />;
-    if (chat.type === 'group') return <Users className="w-4 h-4 text-black dark:text-white" />;
-    const initial = chat.title ? chat.title.trim().charAt(0).toUpperCase() : '?';
-    return <span className="font-bold text-sm text-black dark:text-white">{initial}</span>;
-  };
-
-  const handlePlayAudio = (msgId: number, audioUrl: string) => {
-    if (playingAudioId === msgId) {
-      audioPlayerRef.current?.pause();
-      setPlayingAudioId(null);
-    } else {
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
+      setSending(true);
+      try {
+        await onSendMedia(audioFile, undefined, replyTarget?.id);
+        setReplyTarget(null);
+      } catch (err: any) {
+        alert(err.message || 'Gagal mengirim pesan suara.');
+      } finally {
+        setSending(false);
       }
-      const audio = new Audio(audioUrl);
-      audioPlayerRef.current = audio;
-      audio.onended = () => setPlayingAudioId(null);
-      audio.play().catch(() => {});
-      setPlayingAudioId(msgId);
-    }
+    };
+
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+    setIsRecordingVoice(false);
   };
+
+  const cancelVoiceRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+    }
+    setIsRecordingVoice(false);
+    audioChunksRef.current = [];
+  };
+
+  const formatDuration = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatMsgTime = (timestamp: number) => {
+    const date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const avatar = chat.avatarUrl || apiClient.getAvatarUrl(chat.id);
 
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-black font-mono select-none overflow-hidden relative">
+    <div className="w-full h-full flex flex-col bg-white dark:bg-neutral-950 font-sans select-none overflow-hidden relative text-neutral-900 dark:text-neutral-100">
+      
       {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
 
       {/* Copied Notice Banner */}
       {copiedNotice && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 bg-black dark:bg-white text-white dark:text-black px-3 py-1 text-xs border border-white dark:border-black shadow-lg flex items-center gap-1.5">
-          <Check className="w-3.5 h-3.5" />
-          <span>Teks berhasil disalin!</span>
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-black/85 text-white px-3 py-1 text-xs rounded-full shadow-lg flex items-center gap-1.5 backdrop-blur-md">
+          <Check className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Teks berhasil disalin</span>
         </div>
       )}
 
-      {/* Top Header - Always pinned */}
-      <header className="sticky top-0 z-20 px-3 py-2 border-b-2 border-black dark:border-white bg-white dark:bg-black flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 overflow-hidden">
+      {/* 1. Header (Matching Reference Image 1 & 2 Right) */}
+      <header className="px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-900 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Back button with badge */}
           <button
             onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0"
+            className="p-1 -ml-1 text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
             title="Kembali"
           >
-            <ArrowLeft className="w-4 h-4 text-black dark:text-white" />
+            <ChevronLeft className="w-6 h-6" />
           </button>
 
-          {/* Square avatar */}
+          {/* Circular Avatar */}
           <div 
             onClick={onViewInfo}
-            className="w-8 h-8 border border-black dark:border-white flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 cursor-pointer shrink-0 overflow-hidden"
+            className="w-10 h-10 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center font-bold text-sm shrink-0 cursor-pointer"
           >
-            {getChatAvatar()}
+            {avatar ? (
+              <img src={avatar} alt={chat.title} className="w-full h-full object-cover" />
+            ) : chat.type === 'saved' ? (
+              <Bookmark className="w-4 h-4 text-blue-500" />
+            ) : chat.type === 'group' ? (
+              <Users className="w-4 h-4 text-emerald-500" />
+            ) : chat.type === 'channel' ? (
+              <Landmark className="w-4 h-4 text-purple-500" />
+            ) : (
+              chat.title.charAt(0).toUpperCase()
+            )}
           </div>
 
-          <div 
-            onClick={onViewInfo}
-            className="flex flex-col cursor-pointer overflow-hidden text-left"
-          >
-            <h2 className="font-bold text-xs truncate leading-tight text-black dark:text-white">
+          {/* Contact Name & Status */}
+          <div onClick={onViewInfo} className="flex flex-col min-w-0 cursor-pointer text-left">
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-white truncate">
               {chat.title}
             </h2>
-            <span className="text-[10px] leading-tight flex items-center gap-1">
+            <span className="text-[11px] text-neutral-400 truncate">
               {isTyping ? (
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                  <span>sedang mengetik</span>
-                  <span className="terminal-cursor">_</span>
+                <span className="text-blue-600 dark:text-blue-400 font-medium animate-pulse">
+                  sedang mengetik...
                 </span>
               ) : (
-                <span className="text-neutral-500 truncate">
-                  {chat.type === 'channel' 
-                    ? 'Channel' 
-                    : chat.type === 'group' 
-                    ? 'Group' 
-                    : (chat.username ? `@${chat.username}` : 'online')}
-                </span>
+                chat.type === 'channel' ? 'Channel' : chat.type === 'group' ? 'Grup' : (chat.username ? `@${chat.username}` : 'online')
               )}
             </span>
           </div>
         </div>
 
-        {/* Header Right Actions (In-Chat Search, Voice/Video Call, Chat Info) */}
+        {/* Header Right Actions: Search & More */}
         <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => setShowInChatSearch(!showInChatSearch)}
-            className={`w-8 h-8 flex items-center justify-center border border-black dark:border-white cursor-pointer transition-colors ${
-              showInChatSearch
-                ? 'bg-black text-white dark:bg-white dark:text-black'
-                : 'bg-white dark:bg-black text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900'
-            }`}
-            title="Cari dalam Percakapan Ini"
+            onClick={() => setShowSearch(!showSearch)}
+            className="p-2 text-neutral-500 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+            title="Cari dalam obrolan"
           >
-            <Search className="w-3.5 h-3.5" />
+            <Search className="w-4 h-4" />
           </button>
-
-          {chat.type === 'user' && (
-            <>
-              <button
-                onClick={() => {
-                  if (onStartCall) {
-                    onStartCall(chat.id, chat.title, false);
-                  } else {
-                    setIsVideoCall(false);
-                    setShowCallModal(true);
-                  }
-                }}
-                className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white"
-                title="Panggilan Suara"
-              >
-                <Phone className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={() => {
-                  if (onStartCall) {
-                    onStartCall(chat.id, chat.title, true);
-                  } else {
-                    setIsVideoCall(true);
-                    setShowCallModal(true);
-                  }
-                }}
-                className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white"
-                title="Panggilan Video"
-              >
-                <VideoCallIcon className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
 
           <button
             onClick={onViewInfo}
-            className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white shrink-0"
-            title="Detail Chat"
+            className="p-2 text-neutral-500 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+            title="Info Obrolan"
           >
             <MoreVertical className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* In-Chat Search Bar Overlay */}
-      {showInChatSearch && (
-        <div className="px-3 py-1.5 border-b-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-2 text-xs shrink-0">
-          <div className="flex items-center gap-2 flex-1">
-            <Search className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-            <input
-              type="text"
-              value={inChatSearchQuery}
-              onChange={(e) => setInChatSearchQuery(e.target.value)}
-              placeholder="Cari pesan di sini..."
-              className="w-full bg-transparent text-xs text-black dark:text-white placeholder-neutral-500 focus:outline-hidden font-mono"
-              autoFocus
-            />
-          </div>
+      {/* Pinned Message Banner (If any message is pinned) */}
+      {pinnedMessage && (
+        <PinnedMessageBanner
+          pinnedMessage={pinnedMessage}
+          onJumpToMessage={handleJumpToMessage}
+          onUnpin={() => handleTogglePin(pinnedMessage)}
+        />
+      )}
 
-          <div className="flex items-center gap-1 shrink-0 text-[10px]">
-            {searchMatches.length > 0 && (
-              <span className="font-bold mr-1">
-                {currentMatchIndex + 1}/{searchMatches.length}
-              </span>
-            )}
-            <button
-              onClick={handlePrevSearchMatch}
-              disabled={searchMatches.length === 0}
-              className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 cursor-pointer"
-              title="Pesan Sebelumnya"
-            >
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleNextSearchMatch}
-              disabled={searchMatches.length === 0}
-              className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 cursor-pointer"
-              title="Pesan Berikutnya"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                setShowInChatSearch(false);
-                setInChatSearchQuery('');
-              }}
-              className="p-1 hover:text-red-500 cursor-pointer ml-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+      {/* In-Chat Search Bar */}
+      {showSearch && (
+        <div className="px-4 py-2 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900 flex items-center gap-2">
+          <Search className="w-4 h-4 text-neutral-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari pesan di sini..."
+            className="w-full text-xs bg-transparent focus:outline-hidden"
+          />
+          <button onClick={() => setShowSearch(false)} className="text-xs text-neutral-400 hover:text-black">
+            Batal
+          </button>
         </div>
       )}
 
-      {/* Messages Scroll View */}
-      <div
+      {/* 2. Chat Messages Stream */}
+      <div 
         ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3 bg-neutral-50 dark:bg-neutral-950"
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
       >
-        {hasMoreHistory && (
-          <div className="text-center py-2">
-            <button
-              onClick={() => onLoadMoreHistory()}
-              disabled={loadingMessages}
-              className="text-[10px] border border-black dark:border-white px-2.5 py-1 bg-white dark:bg-black cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-900 font-bold"
-            >
-              {loadingMessages ? '[ Memuat riwayat... ]' : '[ Muat riwayat pesan sebelumnya ]'}
-            </button>
+        {loadingMessages && (
+          <div className="text-center py-4 text-xs text-neutral-400">
+            [ Memuat riwayat pesan... ]
           </div>
         )}
 
+        {/* Date Pill Divider (Matching Mockup: Centered "Today") */}
+        <div className="flex justify-center my-3">
+          <span className="text-[11px] font-semibold text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-3 py-1 rounded-full">
+            Today
+          </span>
+        </div>
+
         {messages.map((msg) => {
-          const isOutgoing = msg.isOutgoing;
-          const media = msg.media;
-          const repliedMsg = msg.replyToMsgId ? messages.find((m) => m.id === msg.replyToMsgId) : null;
+          const isOut = msg.isOutgoing;
+          const isSticker = msg.media?.isSticker;
+          const isHighlighted = highlightedMsgId === msg.id;
 
           return (
             <div
-              key={msg.id}
               id={`msg-${msg.id}`}
-              className={`flex flex-col ${isOutgoing ? 'items-end' : 'items-start'} group transition-all duration-300 rounded-xs`}
+              key={msg.id}
+              className={`flex flex-col group transition-all duration-300 ${
+                isOut ? 'items-end' : 'items-start'
+              } ${isHighlighted ? 'scale-102 ring-2 ring-blue-500 rounded-2xl p-1' : ''}`}
             >
-              {/* Message Bubble */}
-              <div
-                onClick={() => setSelectedMsgForMenu(msg)}
-                className={`max-w-[85%] sm:max-w-[70%] p-2.5 border-2 border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] cursor-pointer ${
-                  isOutgoing
-                    ? 'bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white'
-                    : 'bg-white dark:bg-black text-black dark:text-white'
-                }`}
-              >
-                {/* Incoming header (in groups or channels) */}
-                {!isOutgoing && msg.senderName && chat.type !== 'user' && (
-                  <div className="text-[10px] font-bold text-neutral-600 dark:text-neutral-400 mb-1">
-                    <span>{msg.senderName}</span>
-                  </div>
-                )}
-
-                {/* Reply quote banner with interactive jump */}
-                {msg.replyToMsgId && (
-                  <div 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      jumpToMessage(msg.replyToMsgId!);
-                    }}
-                    className="mb-2 p-1.5 border-l-2 border-black dark:border-white bg-neutral-200 dark:bg-neutral-800 text-[10px] cursor-pointer hover:opacity-80 transition-opacity"
-                    title="Klik untuk melompat ke pesan asli"
-                  >
-                    <div className="font-bold text-neutral-700 dark:text-neutral-300 truncate">
-                      {msg.replyToSender || repliedMsg?.senderName || (repliedMsg?.isOutgoing ? 'Anda' : (chat.title || 'Balasan'))}
-                    </div>
-                    <div className="truncate text-neutral-500 dark:text-neutral-400 italic">
-                      {msg.replyToText || repliedMsg?.text || (repliedMsg?.media ? `[${repliedMsg.media.type || 'Media'}]` : `Membalas pesan #${msg.replyToMsgId}`)}
-                    </div>
-                  </div>
-                )}
-
-                {/* Photo Media Preview */}
-                {media && media.type === 'photo' && (
-                  <div className="mb-2 border border-black dark:border-white overflow-hidden bg-black max-h-64">
-                    <img
-                      src={apiClient.getMediaUrl(media.url)}
-                      alt="Telegram media"
-                      className="w-full h-auto object-contain cursor-pointer hover:opacity-95"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPreviewMediaUrl(apiClient.getMediaUrl(media.url));
-                      }}
+              {/* STICKER RENDERING (Seamless Transparent background, No solid bubble) */}
+              {isSticker && msg.media?.url ? (
+                <div 
+                  onClick={() => setActiveSheetMsg(msg)}
+                  className="cursor-pointer max-w-[200px] max-h-[200px] my-1 relative"
+                  title={msg.media.altEmoji || 'Stiker'}
+                >
+                  {msg.media.stickerType === 'video' ? (
+                    <video
+                      src={msg.media.url}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-40 h-40 object-contain pointer-events-none"
                     />
-                  </div>
-                )}
-
-                {/* Video Media Preview */}
-                {media && media.type === 'video' && (
-                  <div className="mb-2 border border-black dark:border-white p-2 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 truncate">
-                      <Video className="w-4 h-4 shrink-0" />
-                      <span className="truncate font-bold text-[11px]">{media.fileName || 'Video'}</span>
+                  ) : (
+                    <img
+                      src={msg.media.url}
+                      alt={msg.media.altEmoji || 'Sticker'}
+                      className="w-40 h-40 object-contain pointer-events-none hover:scale-105 transition-transform"
+                    />
+                  )}
+                  {msg.reactions && msg.reactions.length > 0 && (
+                    <div className="absolute -bottom-2 right-2 flex items-center gap-1 bg-white dark:bg-neutral-800 shadow-md border border-neutral-200 dark:border-neutral-700 px-1.5 py-0.5 rounded-full text-xs">
+                      {msg.reactions.map((r) => (
+                        <span key={r.emoji}>{r.emoji} {r.count > 1 ? r.count : ''}</span>
+                      ))}
                     </div>
-                    <a
-                      href={apiClient.getMediaUrl(media.url)}
-                      download
-                      className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                )}
-
-                {/* Audio / Voice Note Player */}
-                {media && (media.type === 'audio' || media.type === 'voice') && (
-                  <div className="mb-2 border border-black dark:border-white p-2 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePlayAudio(msg.id, apiClient.getMediaUrl(media.url));
-                        }}
-                        className="w-7 h-7 border border-black dark:border-white flex items-center justify-center bg-white dark:bg-black hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
-                      >
-                        {playingAudioId === msg.id ? (
-                          <Pause className="w-3.5 h-3.5" />
-                        ) : (
-                          <Play className="w-3.5 h-3.5 translate-x-0.5" />
-                        )}
-                      </button>
-                      <div>
-                        <div className="font-bold text-[11px] flex items-center gap-1">
-                          <Volume2 className="w-3 h-3" />
-                          <span>{media.type === 'voice' ? 'Pesan Suara' : (media.fileName || 'Audio')}</span>
-                        </div>
-                        {media.duration && (
-                          <div className="text-[9px] text-neutral-500">
-                            {Math.floor(media.duration / 60)}:{(media.duration % 60).toString().padStart(2, '0')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <a
-                      href={apiClient.getMediaUrl(media.url)}
-                      download
-                      className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                )}
-
-                {/* Document/File Preview */}
-                {media && media.type === 'document' && (
-                  <div className="mb-2 border border-black dark:border-white p-2 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 truncate">
-                      <FileText className="w-4 h-4 shrink-0" />
-                      <div className="truncate">
-                        <div className="truncate font-bold text-[11px]">{media.fileName || 'Dokumen'}</div>
-                        {media.fileSize && (
-                          <div className="text-[9px] text-neutral-500">
-                            {(media.fileSize / 1024).toFixed(1)} KB
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <a
-                      href={apiClient.getMediaUrl(media.url)}
-                      download
-                      className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                )}
-
-                {/* Call Action Card */}
-                {msg.callAction && (
-                  <div className="mb-2 p-2 border border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 border border-black dark:border-white flex items-center justify-center bg-white dark:bg-black">
-                        {msg.callAction.isVideo ? (
-                          <VideoCallIcon className="w-3.5 h-3.5" />
-                        ) : (
-                          <Phone className="w-3.5 h-3.5" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-bold text-[11px]">
-                          {msg.callAction.isVideo ? 'Panggilan Video' : 'Panggilan Suara'}
-                        </div>
-                        <div className="text-[9px] text-neutral-500">
-                          {msg.callAction.reason === 'missed'
-                            ? 'Tak Terjawab'
-                            : msg.callAction.duration
-                            ? `${Math.floor(msg.callAction.duration / 60)}m ${msg.callAction.duration % 60}s`
-                            : 'Panggilan selesai'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsVideoCall(Boolean(msg.callAction?.isVideo));
-                        setShowCallModal(true);
-                      }}
-                      className="px-2 py-1 border border-black dark:border-white text-[10px] font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
-                    >
-                      Panggil Balik
-                    </button>
-                  </div>
-                )}
-
-                {/* Message Text with Link & Mention support */}
-                {msg.text && (
-                  <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
-                    <FormattedText text={msg.text} onMentionClick={onMentionClick} />
-                  </p>
-                )}
-
-                {/* Channel Post Discussion Trigger */}
-                {(chat.type === 'channel' || msg.hasComments || (msg.repliesCount && msg.repliesCount > 0)) && (
-                  <div className="mt-2 pt-1.5 border-t border-dashed border-neutral-300 dark:border-neutral-700">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCommentsPost(msg);
-                      }}
-                      className="py-1 px-2 border border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-[10px] font-bold flex items-center gap-1.5 cursor-pointer text-black dark:text-white transition-colors"
-                      title="Buka sesi komentar postingan ini"
-                    >
-                      <MessageSquare className="w-3 h-3 text-black dark:text-white" />
-                      <span>
-                        {msg.repliesCount ? `[ 💬 ${msg.repliesCount} Komentar ]` : '[ 💬 Buka Komentar ]'}
-                      </span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Footer with accurate status (Centang 1 & Centang 2) */}
-                <div className="mt-1 flex items-center justify-end gap-1.5 text-[9px] text-neutral-500">
-                  {msg.isEdited && <span className="italic">[diedit]</span>}
-                  <span>{formatMessageTime(msg.date)}</span>
-                  {isOutgoing && (
-                    <span title={msg.isRead ? 'Dibaca (Centang 2)' : 'Terkirim (Centang 1)'}>
-                      {msg.isRead ? (
-                        <CheckCheck className="w-3.5 h-3.5 text-black dark:text-white inline" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5 text-neutral-400 inline" />
-                      )}
-                    </span>
                   )}
                 </div>
-              </div>
+              ) : (
+                /* STANDARD CHAT BUBBLE (Matching Mockup: Soft curved bubbles) */
+                <div
+                  onClick={() => setActiveSheetMsg(msg)}
+                  className={`relative p-3.5 text-sm cursor-pointer shadow-2xs transition-all ${
+                    isOut
+                      ? 'bg-blue-600 text-white rounded-3xl rounded-tr-xs max-w-[82%] sm:max-w-[70%]'
+                      : 'bg-neutral-100 dark:bg-neutral-800/90 text-neutral-900 dark:text-neutral-100 rounded-3xl rounded-tl-xs max-w-[82%] sm:max-w-[70%]'
+                  }`}
+                >
+                  {/* Pinned Icon indicator */}
+                  {msg.isPinned && (
+                    <div className="flex items-center gap-1 text-[10px] font-bold opacity-80 mb-1">
+                      <Pin className="w-3 h-3 rotate-45" />
+                      <span>Tersemat</span>
+                    </div>
+                  )}
+
+                  {/* Reply Quote Banner if replying */}
+                  {msg.replyToMsgId && (
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJumpToMessage(msg.replyToMsgId!);
+                      }}
+                      className={`mb-1.5 px-2.5 py-1 text-xs rounded-xl border-l-2 cursor-pointer ${
+                        isOut
+                          ? 'bg-blue-700/60 border-white text-blue-100'
+                          : 'bg-neutral-200/60 dark:bg-neutral-700/60 border-blue-500 text-neutral-600 dark:text-neutral-300'
+                      }`}
+                    >
+                      <span className="font-semibold block text-[10px]">
+                        {msg.replyToSender || 'Balasan'}
+                      </span>
+                      <span className="truncate block opacity-85">
+                        {msg.replyToText || 'Pesan'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Media Content */}
+                  {msg.media && (
+                    <div className="mb-2 rounded-2xl overflow-hidden">
+                      {msg.media.type === 'photo' && (
+                        <img
+                          src={msg.media.url}
+                          alt="Photo"
+                          className="max-h-60 w-full object-cover rounded-2xl cursor-pointer hover:opacity-95"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewMediaUrl(msg.media!.url);
+                          }}
+                        />
+                      )}
+                      {msg.media.type === 'video' && (
+                        <video
+                          src={msg.media.url}
+                          controls
+                          className="max-h-60 w-full rounded-2xl"
+                        />
+                      )}
+                      {(msg.media.type === 'voice' || msg.media.type === 'audio') && (
+                        <div className="flex items-center gap-2 py-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (playingAudioId === msg.id) {
+                                audioPlayerRef.current?.pause();
+                                setPlayingAudioId(null);
+                              } else {
+                                const audio = new Audio(msg.media!.url);
+                                audioPlayerRef.current = audio;
+                                audio.play();
+                                audio.onended = () => setPlayingAudioId(null);
+                                setPlayingAudioId(msg.id);
+                              }
+                            }}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer ${
+                              isOut ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                            }`}
+                          >
+                            {playingAudioId === msg.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                          </button>
+                          <div className="text-xs font-medium">
+                            {msg.media.duration ? formatDuration(msg.media.duration) : 'Pesan Suara'}
+                          </div>
+                        </div>
+                      )}
+                      {msg.media.type === 'document' && (
+                        <a
+                          href={msg.media.url}
+                          download={msg.media.fileName}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 p-2 bg-black/10 dark:bg-white/10 rounded-xl"
+                        >
+                          <FileText className="w-5 h-5 shrink-0" />
+                          <div className="min-w-0 flex-1 truncate text-xs">
+                            <span className="font-semibold truncate block">{msg.media.fileName || 'Berkas'}</span>
+                          </div>
+                          <Download className="w-4 h-4 shrink-0 opacity-80" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Text Message with Formatted parsing */}
+                  {msg.text && (
+                    <div className="break-words leading-relaxed">
+                      <FormattedText text={msg.text} onMentionClick={onMentionClick} />
+                    </div>
+                  )}
+
+                  {/* Time & Read Receipts */}
+                  <div className={`flex items-center justify-end gap-1 text-[10px] mt-1 ${
+                    isOut ? 'text-blue-200' : 'text-neutral-400'
+                  }`}>
+                    <span>{formatMsgTime(msg.date)}</span>
+                    {msg.isEdited && <span>(diedit)</span>}
+                    {isOut && (
+                      <span className="inline-flex">
+                        {msg.isRead ? <CheckCheck className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Reactions Pill Display on Bubble */}
+                  {msg.reactions && msg.reactions.length > 0 && (
+                    <div className="absolute -bottom-2.5 right-2 flex items-center gap-1 bg-white dark:bg-neutral-900 shadow-md border border-neutral-200/80 dark:border-neutral-700 px-2 py-0.5 rounded-full text-xs font-semibold z-10">
+                      {msg.reactions.map((r) => (
+                        <span key={r.emoji}>{r.emoji} {r.count > 1 ? r.count : ''}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
-
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Reply Banner */}
-      {replyTarget && (
-        <div className="px-3 py-1.5 border-t-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between text-xs shrink-0">
-          <div className="flex items-center gap-2 truncate">
-            <Reply className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
-            <div className="truncate">
-              <span className="font-bold">Balas: </span>
-              <span className="text-neutral-600 dark:text-neutral-400 truncate">{replyTarget.text || 'Media'}</span>
-            </div>
+      {/* Reply / Edit Banner above Composer */}
+      {(replyTarget || editingTarget) && (
+        <div className="px-4 py-2 border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900/80 flex items-center justify-between text-xs">
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold text-blue-600 dark:text-blue-400 block text-[11px]">
+              {editingTarget ? 'Edit Pesan' : `Membalas ${replyTarget?.senderName || 'Pesan'}`}
+            </span>
+            <span className="text-neutral-500 truncate block text-[11px]">
+              {editingTarget?.text || replyTarget?.text || '[Lampiran Media]'}
+            </span>
           </div>
-          <button
-            onClick={() => setReplyTarget(null)}
-            className="p-1 hover:text-black dark:hover:text-white cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Editing Banner */}
-      {editingTarget && (
-        <div className="px-3 py-1.5 border-t-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between text-xs shrink-0">
-          <div className="flex items-center gap-2 truncate">
-            <Edit2 className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
-            <span className="font-bold truncate">Mengubah Pesan</span>
-          </div>
-          <button
+          <button 
             onClick={() => {
+              setReplyTarget(null);
               setEditingTarget(null);
-              setInputText('');
             }}
-            className="p-1 hover:text-black dark:hover:text-white cursor-pointer"
+            className="p-1 text-neutral-400 hover:text-black dark:hover:text-white"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Emoji Picker Popover */}
-      {showEmojiPicker && (
-        <div className="p-2 border-t border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
-          {COMMON_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => {
-                setInputText((prev) => prev + emoji);
-                setShowEmojiPicker(false);
-              }}
-              className="text-base p-1 hover:scale-125 transition-transform cursor-pointer"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Bottom Composer Bar */}
-      <div className="sticky bottom-0 z-20 border-t-2 border-black dark:border-white bg-white dark:bg-black p-2 shrink-0">
-        {isRecordingVoice ? (
-          /* Live Voice Recording Bar */
-          <div className="flex items-center justify-between gap-3 px-2 py-1 bg-neutral-100 dark:bg-neutral-900 border border-red-500 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-              <span className="font-bold text-red-600">
-                Merekam Suara: {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, '0')}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={cancelVoiceRecording}
-                className="px-2 py-1 border border-black dark:border-white text-xs font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={finishAndSendVoiceRecording}
-                className="px-3 py-1 border border-black dark:border-white bg-black dark:bg-white text-white dark:text-black text-xs font-bold hover:opacity-90 cursor-pointer"
-              >
-                Kirim
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Standard Input Form */
-          <form onSubmit={handleSend} className="flex gap-1.5 sm:gap-2 items-center">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-8 h-8 flex items-center justify-center border border-black dark:border-white hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0"
-              title="Kirim Foto / Berkas"
-            >
-              <Paperclip className="w-4 h-4 text-black dark:text-white" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="w-8 h-8 flex items-center justify-center border border-black dark:border-white hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0 text-black dark:text-white"
-              title="Emoji"
-            >
-              <Smile className="w-4 h-4" />
-            </button>
-
-            <input
-              type="text"
-              value={inputText}
-              onChange={handleInputChange}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={editingTarget ? 'Ubah pesan...' : 'Ketik pesan...'}
-              className="flex-1 border border-black dark:border-white px-3 py-1.5 text-xs bg-white dark:bg-black text-black dark:text-white placeholder-neutral-500 focus:outline-hidden"
-            />
-
-            {!inputText.trim() && !editingTarget ? (
-              <button
-                type="button"
-                onClick={startVoiceRecording}
-                className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0 text-black dark:text-white"
-                title="Rekam Pesan Suara"
-              >
-                <Mic className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!inputText.trim() || sending}
-                className="py-1.5 px-3 border border-black dark:border-white bg-black dark:bg-white text-white dark:text-black font-bold text-xs tracking-wider hover:opacity-90 disabled:opacity-40 cursor-pointer shrink-0"
-              >
-                {editingTarget ? '[ UBAH ]' : '[ KIRIM ]'}
-              </button>
-            )}
-          </form>
-        )}
-      </div>
-
-      {/* Message Context Action Modal */}
-      {selectedMsgForMenu && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-mono"
-          onClick={() => setSelectedMsgForMenu(null)}
-        >
-          <div
-            className="w-full max-w-sm bg-white dark:bg-black border-2 border-black dark:border-white p-3 shadow-2xl flex flex-col gap-2 text-xs"
-            onClick={(e) => e.stopPropagation()}
+      {/* 3. Modern Curved Composer Bar (Matching Reference Image 2 Right) */}
+      <footer className="p-3 sm:p-4 border-t border-neutral-100 dark:border-neutral-900 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md shrink-0">
+        <form onSubmit={handleSend} className="flex items-center gap-2 max-w-4xl mx-auto">
+          {/* (+) Attachment Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-10 h-10 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors shrink-0 cursor-pointer"
+            title="Kirim Foto, Video, atau Berkas"
           >
-            <div className="font-bold pb-2 border-b border-black dark:border-white flex items-center justify-between">
-              <span>Aksi Pesan</span>
-              <button onClick={() => setSelectedMsgForMenu(null)}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <Plus className="w-5 h-5" />
+          </button>
 
-            {/* Quick Reactions Bar */}
-            <div className="flex items-center justify-between p-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700">
-              {['👍', '❤️', '🔥', '😂', '👏'].map((emoji) => (
+          {/* Voice Recording Active Bar */}
+          {isRecordingVoice ? (
+            <div className="flex-1 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-full px-4 py-2 flex items-center justify-between animate-pulse">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-xs font-semibold">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                <span>Merekam: {formatDuration(recordingSeconds)}</span>
+              </div>
+              <div className="flex items-center gap-2">
                 <button
-                  key={emoji}
-                  onClick={() => {
-                    handleSend();
-                    setSelectedMsgForMenu(null);
-                  }}
-                  className="text-base p-1 hover:scale-125 transition-transform cursor-pointer"
+                  type="button"
+                  onClick={cancelVoiceRecording}
+                  className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer"
+                  title="Batal"
                 >
-                  {emoji}
+                  <X className="w-4 h-4" />
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={stopVoiceRecording}
+                  className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center cursor-pointer shadow-sm"
+                  title="Kirim Pesan Suara"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-
-            {/* Reply */}
-            <button
-              onClick={() => {
-                setReplyTarget(selectedMsgForMenu);
-                setSelectedMsgForMenu(null);
-              }}
-              className="px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center gap-2 border border-black dark:border-white cursor-pointer"
-            >
-              <Reply className="w-4 h-4" />
-              <span>Balas Pesan</span>
-            </button>
-
-            {/* Copy */}
-            {selectedMsgForMenu.text && (
-              <button
-                onClick={() => handleCopyText(selectedMsgForMenu.text)}
-                className="px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center gap-2 border border-black dark:border-white cursor-pointer"
-              >
-                <Copy className="w-4 h-4" />
-                <span>Salin Teks</span>
-              </button>
-            )}
-
-            {/* Forward */}
-            <button
-              onClick={() => {
-                setForwardModalMsg(selectedMsgForMenu);
-                setSelectedMsgForMenu(null);
-              }}
-              className="px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center gap-2 border border-black dark:border-white cursor-pointer"
-            >
-              <Forward className="w-4 h-4" />
-              <span>Teruskan Pesan</span>
-            </button>
-
-            {/* Edit (only if outgoing) */}
-            {selectedMsgForMenu.isOutgoing && selectedMsgForMenu.text && (
-              <button
-                onClick={() => {
-                  setEditingTarget(selectedMsgForMenu);
-                  setInputText(selectedMsgForMenu.text);
-                  setSelectedMsgForMenu(null);
+          ) : (
+            /* Rounded Pill Input Bar */
+            <div className="flex-1 bg-neutral-100 dark:bg-neutral-900 rounded-full px-4 py-2 flex items-center gap-2 border border-neutral-200/70 dark:border-neutral-800">
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  if (onSendTyping) onSendTyping();
                 }}
-                className="px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center gap-2 border border-black dark:border-white cursor-pointer"
-              >
-                <Edit2 className="w-4 h-4" />
-                <span>Edit Pesan</span>
-              </button>
-            )}
+                placeholder="Tulis pesan..."
+                className="w-full bg-transparent text-sm text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-hidden font-normal"
+              />
 
-            {/* Delete (only if outgoing) */}
-            {selectedMsgForMenu.isOutgoing && (
+              {/* Sticker / Video Emoji Drawer Toggle Button */}
               <button
-                onClick={async () => {
-                  const id = selectedMsgForMenu.id;
-                  setSelectedMsgForMenu(null);
-                  await onDeleteMessage(id);
-                }}
-                className="px-3 py-2 text-left bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 hover:opacity-90 flex items-center gap-2 border border-red-500 cursor-pointer"
+                type="button"
+                onClick={() => setShowStickerPicker(!showStickerPicker)}
+                className={`p-1 rounded-full cursor-pointer transition-colors ${
+                  showStickerPicker 
+                    ? 'text-blue-600 dark:text-blue-400' 
+                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200'
+                }`}
+                title="Stiker & Emoji Video"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Hapus Pesan</span>
+                <Sparkles className="w-5 h-5" />
               </button>
-            )}
-          </div>
-        </div>
+
+              {/* Voice Note Recording Button */}
+              {!inputText.trim() && (
+                <button
+                  type="button"
+                  onClick={startVoiceRecording}
+                  className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 rounded-full cursor-pointer transition-colors"
+                  title="Rekam Pesan Suara"
+                >
+                  <Mic className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Send Button (When text is entered) */}
+          {inputText.trim() && (
+            <button
+              type="submit"
+              disabled={sending}
+              className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-500 transition-transform active:scale-90 cursor-pointer shadow-md shrink-0"
+              title="Kirim"
+            >
+              <Send className="w-4 h-4 ml-0.5" />
+            </button>
+          )}
+        </form>
+      </footer>
+
+      {/* Sticker & Video Emoji Picker Drawer */}
+      {showStickerPicker && (
+        <StickerPicker
+          isOpen={showStickerPicker}
+          onClose={() => setShowStickerPicker(false)}
+          onSelectEmoji={(em) => setInputText((prev) => prev + em)}
+          onSelectSticker={handleSelectSticker}
+        />
       )}
 
-      {/* Forward Modal Picker */}
-      {forwardModalMsg && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-mono"
-          onClick={() => setForwardModalMsg(null)}
-        >
-          <div
-            className="w-full max-w-sm max-h-[80vh] bg-white dark:bg-black border-2 border-black dark:border-white p-4 shadow-2xl flex flex-col text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-bold pb-2 border-b border-black dark:border-white flex items-center justify-between mb-2">
-              <span>Teruskan Ke Percakapan:</span>
-              <button onClick={() => setForwardModalMsg(null)}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* Interactive Action Sheet (Matching Reference Mockup 1:1) */}
+      <MessageActionSheet
+        isOpen={Boolean(activeSheetMsg)}
+        onClose={() => setActiveSheetMsg(null)}
+        message={activeSheetMsg}
+        onReact={handleSendReaction}
+        onCopy={() => {
+          if (activeSheetMsg?.text) {
+            navigator.clipboard.writeText(activeSheetMsg.text);
+            setCopiedNotice(true);
+            setTimeout(() => setCopiedNotice(false), 2000);
+          }
+        }}
+        onReply={() => setReplyTarget(activeSheetMsg)}
+        onForward={() => setForwardModalMsg(activeSheetMsg)}
+        onPin={() => {
+          if (activeSheetMsg) handleTogglePin(activeSheetMsg);
+        }}
+        onEdit={() => {
+          if (activeSheetMsg?.isOutgoing) {
+            setEditingTarget(activeSheetMsg);
+            setInputText(activeSheetMsg.text || '');
+          }
+        }}
+        onDelete={() => {
+          if (activeSheetMsg) {
+            onDeleteMessage(activeSheetMsg.id);
+          }
+        }}
+      />
 
-            <div className="flex-1 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
-              {allChats.filter((c) => c.id !== chat.id).map((target) => (
-                <button
-                  key={target.id}
-                  onClick={async () => {
-                    const msgId = forwardModalMsg.id;
-                    setForwardModalMsg(null);
-                    await onForwardMessage(chat.id, target.id, msgId);
-                  }}
-                  className="w-full py-2.5 px-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center gap-2 cursor-pointer"
-                >
-                  <div className="w-7 h-7 border border-black dark:border-white flex items-center justify-center font-bold text-xs">
-                    {target.title.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="truncate font-bold">{target.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Media Viewer Modal */}
+      {/* Fullscreen Media Viewer */}
       {previewMediaUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono"
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4"
           onClick={() => setPreviewMediaUrl(null)}
         >
-          <button
+          <button 
             onClick={() => setPreviewMediaUrl(null)}
-            className="absolute top-4 right-4 text-white p-2 border border-white hover:bg-white/20 cursor-pointer"
+            className="absolute top-4 right-4 text-white p-2 rounded-full bg-white/10 hover:bg-white/20"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
-          <img
-            src={previewMediaUrl}
-            alt="Preview"
-            className="max-w-full max-h-[85vh] object-contain border-2 border-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+          <img 
+            src={previewMediaUrl} 
+            alt="Preview" 
+            className="max-w-full max-h-[90vh] object-contain rounded-2xl" 
           />
         </div>
-      )}
-
-      {/* Channel Comments / Discussion Thread Modal */}
-      {commentsPost && (
-        <ChannelCommentsModal
-          isOpen={Boolean(commentsPost)}
-          onClose={() => setCommentsPost(null)}
-          channelId={chat.id}
-          channelTitle={chat.title}
-          post={commentsPost}
-          onMentionClick={onMentionClick}
-        />
-      )}
-
-      {/* Voice / Video Call Modal */}
-      {showCallModal && (
-        <CallModal
-          isOpen={showCallModal}
-          onClose={() => setShowCallModal(false)}
-          targetId={chat.id}
-          targetName={chat.title}
-          targetUsername={chat.username}
-          isVideoCall={isVideoCall}
-        />
       )}
     </div>
   );

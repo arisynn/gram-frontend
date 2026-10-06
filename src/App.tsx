@@ -16,6 +16,7 @@ import { SettingsView } from '@/components/SettingsView';
 import { EditProfileModal } from '@/components/EditProfileModal';
 import { AddContactModal } from '@/components/AddContactModal';
 import { CallModal } from '@/components/CallModal';
+import { MessageSquare, Plus, Settings } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { 
   UserProfile, 
@@ -932,6 +933,7 @@ export default function GramApp() {
               {activeTab === 'chats' && (
                 <ChatListView
                   chats={chats}
+                  contacts={contacts}
                   selectedChatId={selectedChat?.id}
                   onSelectChat={handleSelectChat}
                   onOpenNewChat={() => setActiveTab('contacts')}
@@ -991,6 +993,42 @@ export default function GramApp() {
                   wsConnected={wsConnected}
                 />
               )}
+            </div>
+
+            {/* Bottom Floating Navigation Dock (Matching Mockup 1:1) */}
+            <div className="p-3 border-t border-neutral-100 dark:border-neutral-900 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md flex items-center justify-around shrink-0 z-10">
+              <button
+                onClick={() => setActiveTab('chats')}
+                className={`p-2 rounded-full cursor-pointer transition-colors ${
+                  activeTab === 'chats'
+                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-neutral-900'
+                    : 'text-neutral-400 hover:text-black dark:hover:text-white'
+                }`}
+                title="Semua Obrolan"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={() => setIsAddingContact(true)}
+                className="px-5 py-2.5 rounded-full bg-neutral-950 dark:bg-white text-white dark:text-black text-xs font-semibold flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                title="Mulai Obrolan / Kontak Baru"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Chat</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`p-2 rounded-full cursor-pointer transition-colors ${
+                  activeTab === 'settings'
+                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-neutral-900'
+                    : 'text-neutral-400 hover:text-black dark:hover:text-white'
+                }`}
+                title="Pengaturan"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
             </div>
           </div>
 

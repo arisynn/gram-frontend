@@ -12,6 +12,7 @@ import type {
   AccountInfo,
   AccountsResponse,
   CallLog,
+  StickerSet,
 } from '@/shared/types';
 
 class ApiClient {
@@ -389,6 +390,47 @@ class ApiClient {
     return this.request<any>('/api/calls/discard', {
       method: 'POST',
       body: JSON.stringify({ callId, duration, isVideo }),
+    });
+  }
+
+  public async pinMessage(chatId: string, messageId: number, silent: boolean = false): Promise<void> {
+    await this.request(`/api/messages/${encodeURIComponent(chatId)}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId, silent }),
+    });
+  }
+
+  public async unpinMessage(chatId: string, messageId?: number): Promise<void> {
+    await this.request(`/api/messages/${encodeURIComponent(chatId)}/unpin`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId }),
+    });
+  }
+
+  public async sendReaction(chatId: string, messageId: number, emoji: string): Promise<void> {
+    await this.request(`/api/messages/${encodeURIComponent(chatId)}/reaction`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId, emoji }),
+    });
+  }
+
+  public async getStickerSets(): Promise<StickerSet[]> {
+    return this.request<StickerSet[]>('/api/stickers/sets');
+  }
+
+  public async getStickerSet(setNameOrId: string): Promise<StickerSet> {
+    return this.request<StickerSet>(`/api/stickers/set/${encodeURIComponent(setNameOrId)}`);
+  }
+
+  public async sendSticker(
+    chatId: string,
+    documentId: string,
+    accessHash: string,
+    replyToMsgId?: number
+  ): Promise<any> {
+    return this.request(`/api/messages/${encodeURIComponent(chatId)}/sticker`, {
+      method: 'POST',
+      body: JSON.stringify({ documentId, accessHash, replyToMsgId }),
     });
   }
 }
