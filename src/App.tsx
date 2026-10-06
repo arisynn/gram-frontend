@@ -73,6 +73,7 @@ export default function GramApp() {
     isOpen: boolean;
     contact: TelegramContact;
     isVideo: boolean;
+    isIncoming?: boolean;
   } | null>(null);
 
   // Theme & WebSocket
@@ -155,6 +156,7 @@ export default function GramApp() {
 
   const selectedChatRef = useRef<ChatSummary | null>(selectedChat);
   const chatsRef = useRef<ChatSummary[]>(chats);
+  const contactsRef = useRef<TelegramContact[]>(contacts);
 
   useEffect(() => {
     selectedChatRef.current = selectedChat;
@@ -163,6 +165,10 @@ export default function GramApp() {
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
+
+  useEffect(() => {
+    contactsRef.current = contacts;
+  }, [contacts]);
 
   // Load Chats
   const loadChats = useCallback(async (showSpinner = true) => {
@@ -555,6 +561,24 @@ export default function GramApp() {
                   [targetChatId]: { userId: data.userId, timer },
                 };
               });
+            } else if (eventType === 'phone_call_update' && data) {
+              const status = data.status;
+              if (status === 'PhoneCallRequested' || status === 'PhoneCallWaiting') {
+                const peerId = data.participantId || data.call?.adminId;
+                const contact = contactsRef.current.find((c) => String(c.id) === String(peerId));
+                setContactCallModal({
+                  isOpen: true,
+                  contact: contact || {
+                    id: String(peerId || 'caller'),
+                    firstName: 'Panggilan Masuk Telegram',
+                  },
+                  isVideo: Boolean(data.isVideo),
+                  isIncoming: true,
+                });
+              } else if (status === 'PhoneCallDiscarded') {
+                setContactCallModal((current) => (current?.isIncoming ? null : current));
+                loadCalls(false);
+              }
             }
           } catch {}
         };
@@ -1085,6 +1109,7 @@ export default function GramApp() {
             targetName={`${contactCallModal.contact.firstName} ${contactCallModal.contact.lastName || ''}`.trim() || contactCallModal.contact.username || 'Contact'}
             targetUsername={contactCallModal.contact.username}
             isVideoCall={contactCallModal.isVideo}
+            isIncoming={contactCallModal.isIncoming}
           />
         )}
       </div>

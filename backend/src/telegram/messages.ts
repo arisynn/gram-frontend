@@ -35,13 +35,16 @@ export async function fetchMessages(
       let type: MessageMedia['type'] = 'document';
       if (mime.startsWith('image/')) type = 'photo';
       else if (mime.startsWith('video/')) type = 'video';
+      else if (mime.startsWith('audio/ogg') || mime.includes('opus')) type = 'voice';
+      else if (mime.startsWith('audio/')) type = 'audio';
 
       media = {
         type,
         url: `/api/media/message/${encodeURIComponent(chatId)}/${msg.id}`,
-        fileName: doc.attributes?.find((a: any) => a.fileName)?.fileName || 'file',
+        fileName: doc.attributes?.find((a: any) => a.fileName)?.fileName || (type === 'voice' ? 'voice.ogg' : 'file'),
         fileSize: doc.size ? Number(doc.size) : undefined,
         mimeType: mime,
+        duration: doc.attributes?.find((a: any) => a.duration)?.duration,
       };
     }
 
@@ -166,6 +169,8 @@ export async function sendMediaMessage(
   const customFile = new CustomFile(filename, buffer.length, '', buffer);
   const isImage = Boolean(filename.match(/\.(jpg|jpeg|png|webp|gif)$/i));
   const isVideo = Boolean(filename.match(/\.(mp4|mov|avi|webm)$/i));
+  const isAudio = Boolean(filename.match(/\.(ogg|mp3|wav|m4a|aac|opus)$/i));
+  const isVoice = Boolean(filename.match(/\.(ogg|opus)$/i)) && filename.includes('voice');
 
   const uploadedFile = await client.uploadFile({
     file: customFile,
@@ -176,9 +181,16 @@ export async function sendMediaMessage(
     file: uploadedFile,
     caption: caption || '',
     replyTo: replyToMsgId,
-    forceDocument: !isImage && !isVideo,
+    forceDocument: !isImage && !isVideo && !isAudio,
+    voiceNote: isVoice,
     workers: 1,
   });
+
+  let mediaType: MessageMedia['type'] = 'document';
+  if (isImage) mediaType = 'photo';
+  else if (isVideo) mediaType = 'video';
+  else if (isVoice) mediaType = 'voice';
+  else if (isAudio) mediaType = 'audio';
 
   return {
     id: sent.id,
@@ -191,7 +203,7 @@ export async function sendMediaMessage(
     isRead: false,
     replyToMsgId,
     media: {
-      type: isImage ? 'photo' : isVideo ? 'video' : 'document',
+      type: mediaType,
       url: `/api/media/message/${encodeURIComponent(chatId)}/${sent.id}`,
       fileName: filename,
       fileSize: buffer.length,
