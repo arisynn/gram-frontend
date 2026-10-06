@@ -1,0 +1,6 @@
+{
+  "name": "GRAM — open source messenger",
+  "description": "A clean, fast, open source messenger client for Telegram",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
