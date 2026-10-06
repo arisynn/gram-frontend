@@ -20,7 +20,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
   const [isJoined, setIsJoined] = useState(channel.isJoined);
   const [loading, setLoading] = useState(false);
   const [posts, setPosts] = useState<ChatMessage[]>([]);
-  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
   // Comments state
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
@@ -32,6 +32,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
   // Fetch real channel posts
   useEffect(() => {
     let active = true;
+    setLoadingPosts(true);
     apiClient.getMessages(channel.id, 20)
       .then((history) => {
         if (active) setPosts(history);
@@ -141,7 +142,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
           {channel.title}
         </h1>
         <span className="text-xs text-neutral-500 mt-0.5">
-          {channel.subscribersCount > 0 ? `${channel.subscribersCount} subscribers` : 'Official Channel'}
+          {channel.subscribersCount > 0 ? `${channel.subscribersCount} pelanggan` : 'Channel Telegram'}
         </span>
         {channel.username && (
           <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 mt-0.5">
@@ -183,7 +184,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
             )}
 
             {!loadingPosts && posts.length === 0 && (
-              <div className="text-center text-xs text-neutral-500 py-6 border border-dashed border-neutral-300 p-4">
+              <div className="text-center text-xs text-neutral-500 py-6 border border-dashed border-neutral-300 dark:border-neutral-800 p-4">
                 [ Belum ada postingan di channel ini ]
               </div>
             )}
@@ -228,7 +229,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
 
                   <div className="flex items-center gap-1 text-neutral-500">
                     <Eye className="w-3 h-3" />
-                    <span>{channel.subscribersCount || '1.2K'}</span>
+                    <span>{post.commentsCount || 0}</span>
                   </div>
                 </div>
               </div>
@@ -260,7 +261,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
             onClick={handleJoin}
             className="w-full py-3 px-4 border-2 border-black dark:border-white bg-black dark:bg-white text-white dark:text-black font-bold text-xs tracking-widest hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
-            {loading ? '[ MEMPROSES... ]' : '[ JOIN CHANNEL ]'}
+            {loading ? '[ MEMPROSES... ]' : '[ GABUNG CHANNEL ]'}
           </button>
         )}
       </div>
@@ -298,7 +299,7 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
 
               {!loadingComments && comments.length === 0 && (
                 <div className="p-6 text-center text-neutral-500 border border-dashed border-neutral-300 dark:border-neutral-800">
-                  [ Belum ada komentar pada kiriman ini. Tulis komentar pertama di bawah! ]
+                  [ Belum ada komentar pada kiriman ini. ]
                 </div>
               )}
 

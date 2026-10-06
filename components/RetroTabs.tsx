@@ -1,88 +1,82 @@
 'use client';
 
 import React from 'react';
-import { MessageSquare, Phone, Users, Settings as SettingsIcon } from 'lucide-react';
+import { MessageSquare, Phone, Users, Settings } from 'lucide-react';
 
 export type MainTabType = 'chats' | 'calls' | 'contacts' | 'settings';
 
-interface RetroBottomNavProps {
+interface RetroTopTabsProps {
   activeTab: MainTabType;
   onChangeTab: (tab: MainTabType) => void;
   chatsCount?: number;
   callsCount?: number;
+  unreadCount?: number;
 }
 
-export const RetroBottomNav: React.FC<RetroBottomNavProps> = ({
+export const RetroTopTabs: React.FC<RetroTopTabsProps> = ({
   activeTab,
   onChangeTab,
   chatsCount = 0,
   callsCount = 0,
+  unreadCount = 0,
 }) => {
+  const tabs = [
+    {
+      id: 'chats' as MainTabType,
+      label: 'OBROLAN',
+      icon: MessageSquare,
+      badge: unreadCount > 0 ? unreadCount : undefined,
+    },
+    {
+      id: 'calls' as MainTabType,
+      label: 'PANGGILAN',
+      icon: Phone,
+      badge: callsCount > 0 ? callsCount : undefined,
+    },
+    {
+      id: 'contacts' as MainTabType,
+      label: 'KONTAK',
+      icon: Users,
+    },
+    {
+      id: 'settings' as MainTabType,
+      label: 'PENGATURAN',
+      icon: Settings,
+    },
+  ];
+
   return (
-    <nav className="w-full bg-[#FFFDF8] dark:bg-[#121212] border-t-[1.5px] border-neutral-900 dark:border-neutral-700 py-1.5 px-3 select-none flex items-center justify-around shrink-0 z-30 transition-all">
-      {/* Tab 1: Chats */}
-      <button
-        onClick={() => onChangeTab('chats')}
-        className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
-          activeTab === 'chats'
-            ? 'bg-[#FCA5A5] dark:bg-[#BE185D] text-neutral-900 dark:text-white font-extrabold shadow-xs scale-105 border-[1.5px] border-neutral-900 dark:border-white'
-            : 'text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white font-medium'
-        }`}
-      >
-        <div className="relative">
-          <MessageSquare className="w-5 h-5 fill-current" />
-          {chatsCount > 0 && activeTab !== 'chats' && (
-            <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-[#F43F5E] ring-1 ring-white" />
-          )}
-        </div>
-        <span className="text-[11px] tracking-tight">Chats</span>
-      </button>
+    <nav className="w-full grid grid-cols-4 bg-white dark:bg-black border-b border-black dark:border-white font-mono text-[11px] select-none shrink-0">
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        const Icon = tab.icon;
 
-      {/* Tab 2: Calls */}
-      <button
-        onClick={() => onChangeTab('calls')}
-        className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
-          activeTab === 'calls'
-            ? 'bg-[#BAE6FD] dark:bg-[#0369A1] text-neutral-900 dark:text-white font-extrabold shadow-xs scale-105 border-[1.5px] border-neutral-900 dark:border-white'
-            : 'text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white font-medium'
-        }`}
-      >
-        <div className="relative">
-          <Phone className="w-5 h-5 fill-current" />
-          {callsCount > 0 && activeTab !== 'calls' && (
-            <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-[#38BDF8] ring-1 ring-white" />
-          )}
-        </div>
-        <span className="text-[11px] tracking-tight">Calls</span>
-      </button>
-
-      {/* Tab 3: Contacts */}
-      <button
-        onClick={() => onChangeTab('contacts')}
-        className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
-          activeTab === 'contacts'
-            ? 'bg-[#FED7AA] dark:bg-[#C2410C] text-neutral-900 dark:text-white font-extrabold shadow-xs scale-105 border-[1.5px] border-neutral-900 dark:border-white'
-            : 'text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white font-medium'
-        }`}
-      >
-        <Users className="w-5 h-5 fill-current" />
-        <span className="text-[11px] tracking-tight">Contacts</span>
-      </button>
-
-      {/* Tab 4: Settings */}
-      <button
-        onClick={() => onChangeTab('settings')}
-        className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
-          activeTab === 'settings'
-            ? 'bg-[#BBF7D0] dark:bg-[#15803D] text-neutral-900 dark:text-white font-extrabold shadow-xs scale-105 border-[1.5px] border-neutral-900 dark:border-white'
-            : 'text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white font-medium'
-        }`}
-      >
-        <SettingsIcon className="w-5 h-5 fill-current" />
-        <span className="text-[11px] tracking-tight">Settings</span>
-      </button>
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onChangeTab(tab.id)}
+            className={`py-2 px-1 flex items-center justify-center gap-1.5 font-bold transition-colors cursor-pointer border-r border-black dark:border-white last:border-r-0 truncate ${
+              isActive
+                ? 'bg-black text-white dark:bg-white dark:text-black'
+                : 'bg-white text-black dark:bg-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate hidden sm:inline">{tab.label}</span>
+            {tab.badge !== undefined && (
+              <span
+                className={`text-[9px] px-1 py-0.2 border leading-none font-bold shrink-0 ${
+                  isActive
+                    ? 'border-white text-white dark:border-black dark:text-black'
+                    : 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black'
+                }`}
+              >
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </nav>
   );
 };
-
-export const RetroTopTabs = RetroBottomNav;

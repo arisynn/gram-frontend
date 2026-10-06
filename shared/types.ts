@@ -35,7 +35,7 @@ export interface ChatSummary {
 }
 
 export interface MessageMedia {
-  type: 'photo' | 'video' | 'document';
+  type: 'photo' | 'video' | 'document' | 'audio' | 'voice';
   url: string;
   fileName?: string;
   fileSize?: number;

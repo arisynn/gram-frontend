@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RetroHeader } from '@/components/RetroHeader';
-import { RetroBottomNav, MainTabType } from '@/components/RetroTabs';
+import { RetroTopTabs, MainTabType } from '@/components/RetroTabs';
 import { RetroDrawer } from '@/components/RetroDrawer';
 import { LoginView } from '@/components/LoginView';
 import { ChatListView } from '@/components/ChatListView';
@@ -153,7 +153,6 @@ export default function GramApp() {
     return () => { active = false; };
   }, [loadAccounts]);
 
-  // Selected Chat & Chats Ref for real-time WebSocket listener without reconnection loops
   const selectedChatRef = useRef<ChatSummary | null>(selectedChat);
   const chatsRef = useRef<ChatSummary[]>(chats);
 
@@ -165,7 +164,7 @@ export default function GramApp() {
     chatsRef.current = chats;
   }, [chats]);
 
-  // Load Chats (supports silent background sync)
+  // Load Chats
   const loadChats = useCallback(async (showSpinner = true) => {
     if (!currentUser) return;
     if (showSpinner) setLoadingChats(true);
@@ -179,7 +178,7 @@ export default function GramApp() {
     }
   }, [currentUser]);
 
-  // Load Contacts (supports silent background sync)
+  // Load Contacts
   const loadContacts = useCallback(async (showSpinner = true) => {
     if (!currentUser) return;
     if (showSpinner) setLoadingContacts(true);
@@ -193,7 +192,7 @@ export default function GramApp() {
     }
   }, [currentUser]);
 
-  // Load Calls (supports silent background sync)
+  // Load Calls
   const loadCalls = useCallback(async (showSpinner = true) => {
     if (!currentUser) return;
     if (showSpinner) setLoadingCalls(true);
@@ -232,7 +231,7 @@ export default function GramApp() {
     return () => { active = false; };
   }, [currentUser]);
 
-  // Load Messages (supports silent background sync)
+  // Load Messages
   const loadMessages = useCallback(async (chatId: string, showSpinner = true) => {
     if (showSpinner) {
       setLoadingMessages(true);
@@ -279,6 +278,28 @@ export default function GramApp() {
     setSelectedChat(chat);
     setDetailView(null);
     loadMessages(chat.id, true);
+  };
+
+  const handlePinChat = async (chatId: string, pinned: boolean) => {
+    try {
+      await apiClient.pinChat(chatId, pinned);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isPinned: pinned } : c))
+      );
+    } catch (err: any) {
+      alert(err.message || 'Gagal menyematkan obrolan.');
+    }
+  };
+
+  const handleArchiveChat = async (chatId: string, archived: boolean) => {
+    try {
+      await apiClient.archiveChat(chatId, archived);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isArchived: archived } : c))
+      );
+    } catch (err: any) {
+      alert(err.message || 'Gagal mengarsipkan obrolan.');
+    }
   };
 
   const handleSendMessage = async (text: string, replyToMsgId?: number) => {
@@ -369,7 +390,7 @@ export default function GramApp() {
     alert('Pesan berhasil diteruskan!');
   };
 
-  // Realtime WebSocket with auto-reconnection and event dispatching
+  // Realtime WebSocket
   useEffect(() => {
     if (!currentUser) {
       if (wsRef.current) {
@@ -399,7 +420,6 @@ export default function GramApp() {
           setWsConnected(true);
           retryCount = 0;
 
-          // Heartbeat ping every 15s to keep mobile/tunnel connections active
           if (pingInterval) clearInterval(pingInterval);
           pingInterval = setInterval(() => {
             if (socket && socket.readyState === WebSocket.OPEN) {
@@ -409,7 +429,6 @@ export default function GramApp() {
             }
           }, 15000);
 
-          // Fast silent catch-up sync on connect
           loadChats(false);
           if (selectedChatRef.current) {
             loadMessages(selectedChatRef.current.id, false);
@@ -420,7 +439,6 @@ export default function GramApp() {
           setWsConnected(false);
           if (pingInterval) clearInterval(pingInterval);
           if (!isCleanedUp) {
-            // Auto reconnect with exponential backoff (1s, 2s, 4s, 5s max)
             const delay = Math.min(1000 * Math.pow(1.5, retryCount), 5000);
             retryCount++;
             reconnectTimeout = setTimeout(connectWebSocket, delay);
@@ -443,7 +461,6 @@ export default function GramApp() {
               const activeChatId = selectedChatRef.current ? String(selectedChatRef.current.id) : null;
               const isCurrentlyActive = activeChatId === targetChatId;
 
-              // 1. Update active messages list immediately
               if (isCurrentlyActive) {
                 setMessages((prev) => {
                   if (prev.some((m) => m.id === incoming.id)) return prev;
@@ -452,7 +469,6 @@ export default function GramApp() {
                 apiClient.markChatRead(targetChatId).catch(() => {});
               }
 
-              // 2. Update and re-order chat list (bring latest to top)
               setChats((prev) => {
                 const existingChat = prev.find((c) => String(c.id) === targetChatId);
                 const remaining = prev.filter((c) => String(c.id) !== targetChatId);
@@ -470,7 +486,6 @@ export default function GramApp() {
                   };
                   return [updated, ...remaining];
                 } else {
-                  // Unknown chat yet, fetch silently
                   loadChats(false);
                   return prev;
                 }
@@ -553,8 +568,6 @@ export default function GramApp() {
 
     connectWebSocket();
 
-    // Multi-layered Real-Time Backup:
-    // 1. Silent sync when window gains focus or tab becomes visible
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         loadChats(false);
@@ -567,7 +580,6 @@ export default function GramApp() {
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // 2. Silent background polling interval (every 10 seconds)
     const backgroundInterval = setInterval(() => {
       loadChats(false);
       if (selectedChatRef.current) {
@@ -696,11 +708,54 @@ export default function GramApp() {
     setActiveTab('chats');
   };
 
+  const handleGlobalEntitySelect = async (entity: any) => {
+    if (entity.type === 'channel') {
+      try {
+        const detail = await apiClient.getChannelDetail(entity.id);
+        setChannelDetail(detail);
+        setDetailView('channel');
+      } catch {
+        const newChat: ChatSummary = {
+          id: entity.id,
+          title: entity.title,
+          type: 'channel',
+          username: entity.username,
+          unreadCount: 0,
+        };
+        setSelectedChat(newChat);
+        loadMessages(newChat.id);
+      }
+    } else if (entity.type === 'group') {
+      try {
+        const detail = await apiClient.getGroupDetail(entity.id);
+        setGroupDetail(detail);
+        setDetailView('group');
+      } catch {
+        const newChat: ChatSummary = {
+          id: entity.id,
+          title: entity.title,
+          type: 'group',
+          username: entity.username,
+          unreadCount: 0,
+        };
+        setSelectedChat(newChat);
+        loadMessages(newChat.id);
+      }
+    } else {
+      handleStartContactChat({
+        id: entity.id,
+        firstName: entity.firstName || entity.title || 'User',
+        lastName: entity.lastName,
+        username: entity.username,
+        phone: entity.phone,
+      });
+    }
+  };
+
   const handleMentionClick = async (username: string) => {
     const cleanUser = username.replace(/^@/, '').trim();
     if (!cleanUser) return;
 
-    // 1. Check existing open chats
     const existingChat = chats.find(
       (c) => c.username?.toLowerCase() === cleanUser.toLowerCase() ||
              c.title.toLowerCase().includes(cleanUser.toLowerCase())
@@ -710,7 +765,6 @@ export default function GramApp() {
       return;
     }
 
-    // 2. Check contacts
     const existingContact = contacts.find(
       (c) => c.username?.toLowerCase() === cleanUser.toLowerCase()
     );
@@ -719,39 +773,12 @@ export default function GramApp() {
       return;
     }
 
-    // 3. Search Telegram globally for this username
     try {
       const res = await apiClient.searchGlobal('@' + cleanUser);
       if (res.publicEntity) {
-        const entity = res.publicEntity;
-        if (entity.type === 'channel') {
-          const detail = await apiClient.getChannelDetail(entity.id);
-          setChannelDetail(detail);
-          setDetailView('channel');
-        } else if (entity.type === 'group') {
-          const detail = await apiClient.getGroupDetail(entity.id);
-          setGroupDetail(detail);
-          setDetailView('group');
-        } else {
-          const newChat: ChatSummary = {
-            id: entity.id,
-            title: entity.title || `@${entity.username}`,
-            type: entity.type,
-            username: entity.username,
-            unreadCount: 0,
-          };
-          setSelectedChat(newChat);
-          loadMessages(newChat.id, true);
-        }
+        handleGlobalEntitySelect(res.publicEntity);
       } else if (res.users && res.users.length > 0) {
-        const found = res.users[0];
-        handleStartContactChat({
-          id: found.id,
-          firstName: found.firstName,
-          lastName: found.lastName,
-          username: found.username,
-          phone: found.phone,
-        });
+        handleStartContactChat(res.users[0]);
       } else {
         alert(`Pengguna atau channel @${cleanUser} tidak ditemukan.`);
       }
@@ -800,6 +827,8 @@ export default function GramApp() {
       />
     );
   }
+
+  const unreadTotal = chats.reduce((acc, c) => acc + (c.unreadCount > 0 ? 1 : 0), 0);
 
   return (
     <div className="w-screen h-[100dvh] flex justify-center bg-neutral-200 dark:bg-neutral-900 font-mono text-black dark:text-white overflow-hidden select-none">
@@ -851,12 +880,27 @@ export default function GramApp() {
               selectedChat ? 'hidden md:flex' : 'flex'
             }`}
           >
-            {/* Header: only Hamburger menu + Title */}
+            {/* Header: Menu + Quick Switcher + Theme Toggle */}
             <RetroHeader
               title="GRAM"
               subtitle="open source messenger"
               showMenu={true}
               onMenuClick={() => setIsDrawerOpen(true)}
+              currentUser={currentUser}
+              accounts={accounts}
+              onSwitchAccount={handleSwitchAccount}
+              onAddAccount={() => setIsAddingAccount(true)}
+              isDarkMode={isDarkMode}
+              onToggleDarkMode={toggleDarkMode}
+            />
+
+            {/* Top Navigation Tabs */}
+            <RetroTopTabs
+              activeTab={activeTab}
+              onChangeTab={setActiveTab}
+              chatsCount={chats.length}
+              unreadCount={unreadTotal}
+              callsCount={calls.length}
             />
 
             <div className="flex-1 overflow-hidden">
@@ -866,6 +910,9 @@ export default function GramApp() {
                   selectedChatId={selectedChat?.id}
                   onSelectChat={handleSelectChat}
                   onOpenNewChat={() => setActiveTab('contacts')}
+                  onPinChat={handlePinChat}
+                  onArchiveChat={handleArchiveChat}
+                  onSelectGlobalEntity={handleGlobalEntitySelect}
                   loading={loadingChats}
                 />
               )}
@@ -920,14 +967,6 @@ export default function GramApp() {
                 />
               )}
             </div>
-
-            {/* Bottom Navigation Bar */}
-            <RetroBottomNav
-              activeTab={activeTab}
-              onChangeTab={setActiveTab}
-              chatsCount={chats.reduce((acc, c) => acc + (c.unreadCount > 0 ? 1 : 0), 0) || chats.length}
-              callsCount={calls.length}
-            />
           </div>
 
           {/* Right Column: Conversation View */}
@@ -965,7 +1004,7 @@ export default function GramApp() {
                 <div className="font-bold text-sm text-black dark:text-white">
                   PILIH PERCAKAPAN
                 </div>
-                <div className="text-xs text-neutral-500 mt-1 max-w-xs">
+                <div className="text-xs text-neutral-500 mt-1 max-w-xs leading-relaxed">
                   Pilih percakapan dari daftar di sebelah kiri untuk membaca dan mengirim pesan MTProto secara aman.
                 </div>
               </div>
@@ -973,7 +1012,7 @@ export default function GramApp() {
           </div>
         </div>
 
-        {/* Clean Drawer without duplicate tabs */}
+        {/* Retro Drawer */}
         <RetroDrawer
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}

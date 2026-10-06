@@ -22,8 +22,16 @@ import {
   MessageSquare,
   Phone,
   Video as VideoCallIcon,
+  Search,
+  ChevronUp,
+  ChevronDown,
   Smile,
-  Send as SendIcon
+  Mic,
+  MicOff,
+  Square,
+  Play,
+  Pause,
+  Volume2
 } from 'lucide-react';
 import type { ChatSummary, ChatMessage } from '@/shared/types';
 import { apiClient } from '@/lib/api-client';
@@ -49,6 +57,8 @@ interface ConversationViewProps {
   isTyping?: boolean;
   onSendTyping?: () => void;
 }
+
+const COMMON_EMOJIS = ['👍', '❤️', '🔥', '😂', '👏', '🎉', '🚀', '💯', '🙏', '👀', '✨', '⚡'];
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
   chat,
@@ -78,6 +88,22 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const [forwardModalMsg, setForwardModalMsg] = useState<ChatMessage | null>(null);
   const [commentsPost, setCommentsPost] = useState<ChatMessage | null>(null);
 
+  // In-Chat Search State
+  const [showInChatSearch, setShowInChatSearch] = useState(false);
+  const [inChatSearchQuery, setInChatSearchQuery] = useState('');
+  const [searchMatches, setSearchMatches] = useState<number[]>([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+  // Voice Note Recording State
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
+
+  // Quick Emoji Picker Popover
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
   // Call modal state
   const [showCallModal, setShowCallModal] = useState(false);
   const [isVideoCall, setIsVideoCall] = useState(false);
@@ -85,6 +111,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   // Media preview modal state
   const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
   const [copiedNotice, setCopiedNotice] = useState(false);
+
+  // Audio Playback state
+  const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -99,14 +129,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     }
   };
 
-  // Instant positioning without any scroll animation when opening or switching chat
   useEffect(() => {
     scrollToBottomInstant();
     const timer = setTimeout(scrollToBottomInstant, 50);
     return () => clearTimeout(timer);
   }, [chat.id]);
 
-  // When messages load or change, jump directly to bottom if on current chat
   useEffect(() => {
     if (!editingTarget) {
       if (prevChatIdRef.current !== chat.id) {
@@ -117,6 +145,109 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       }
     }
   }, [messages.length, editingTarget, chat.id]);
+
+  // Handle In-Chat Search filtering
+  useEffect(() => {
+    if (!inChatSearchQuery.trim()) {
+      setSearchMatches([]);
+      setCurrentMatchIndex(0);
+      return;
+    }
+
+    const q = inChatSearchQuery.toLowerCase().trim();
+    const matches: number[] = [];
+    messages.forEach((m) => {
+      if (m.text && m.text.toLowerCase().includes(q)) {
+        matches.push(m.id);
+      }
+    });
+
+    setSearchMatches(matches);
+    setCurrentMatchIndex(matches.length > 0 ? 0 : 0);
+
+    if (matches.length > 0) {
+      jumpToMessage(matches[0]);
+    }
+  }, [inChatSearchQuery, messages]);
+
+  const handleNextSearchMatch = () => {
+    if (searchMatches.length === 0) return;
+    const next = (currentMatchIndex + 1) % searchMatches.length;
+    setCurrentMatchIndex(next);
+    jumpToMessage(searchMatches[next]);
+  };
+
+  const handlePrevSearchMatch = () => {
+    if (searchMatches.length === 0) return;
+    const prev = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+    setCurrentMatchIndex(prev);
+    jumpToMessage(searchMatches[prev]);
+  };
+
+  // Voice Note Recording functions
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.start();
+      setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+    } catch (err) {
+      alert('Tidak dapat mengakses mikrofon.');
+    }
+  };
+
+  const cancelVoiceRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+    }
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setIsRecordingVoice(false);
+    setRecordingSeconds(0);
+    audioChunksRef.current = [];
+  };
+
+  const finishAndSendVoiceRecording = () => {
+    if (!mediaRecorderRef.current) return;
+
+    mediaRecorderRef.current.onstop = async () => {
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/ogg; codecs=opus' });
+      const audioFile = new File([audioBlob], `voice_message_${Date.now()}.ogg`, {
+        type: 'audio/ogg',
+      });
+
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      setIsRecordingVoice(false);
+      setRecordingSeconds(0);
+
+      try {
+        setSending(true);
+        await onSendMedia(audioFile, undefined, replyTarget?.id);
+        setReplyTarget(null);
+      } catch (err: any) {
+        alert(err.message || 'Gagal mengirim pesan suara.');
+      } finally {
+        setSending(false);
+      }
+    };
+
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+  };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -186,7 +317,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       elem.classList.add('ring-2', 'ring-black', 'dark:ring-white');
       setTimeout(() => {
         elem.classList.remove('ring-2', 'ring-black', 'dark:ring-white');
-      }, 1800);
+      }, 2000);
     }
   };
 
@@ -221,6 +352,22 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     return <span className="font-bold text-sm text-black dark:text-white">{initial}</span>;
   };
 
+  const handlePlayAudio = (msgId: number, audioUrl: string) => {
+    if (playingAudioId === msgId) {
+      audioPlayerRef.current?.pause();
+      setPlayingAudioId(null);
+    } else {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+      }
+      const audio = new Audio(audioUrl);
+      audioPlayerRef.current = audio;
+      audio.onended = () => setPlayingAudioId(null);
+      audio.play().catch(() => {});
+      setPlayingAudioId(msgId);
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-black font-mono select-none overflow-hidden relative">
       {/* Hidden file input */}
@@ -239,21 +386,21 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         </div>
       )}
 
-      {/* Top Header - Baby Blue Pastel Soft-morphism */}
-      <header className="sticky top-0 z-20 px-3.5 py-2.5 border-b-[1.5px] border-neutral-900 dark:border-neutral-700 bg-[#D2EBFA] dark:bg-[#082F49] text-neutral-900 dark:text-white flex items-center justify-between shrink-0 shadow-xs">
-        <div className="flex items-center gap-2.5 overflow-hidden">
+      {/* Top Header - Always pinned */}
+      <header className="sticky top-0 z-20 px-3 py-2 border-b-2 border-black dark:border-white bg-white dark:bg-black flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 overflow-hidden">
           <button
             onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-white/90 dark:bg-neutral-800 hover:bg-white cursor-pointer shrink-0 transition-transform active:scale-95"
+            className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0"
             title="Kembali"
           >
-            <ArrowLeft className="w-4 h-4 text-neutral-900 dark:text-white" />
+            <ArrowLeft className="w-4 h-4 text-black dark:text-white" />
           </button>
 
-          {/* Rounded avatar */}
+          {/* Square avatar */}
           <div 
             onClick={onViewInfo}
-            className="w-9 h-9 rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 flex items-center justify-center bg-white dark:bg-neutral-800 cursor-pointer shrink-0 overflow-hidden shadow-xs"
+            className="w-8 h-8 border border-black dark:border-white flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 cursor-pointer shrink-0 overflow-hidden"
           >
             {getChatAvatar()}
           </div>
@@ -262,16 +409,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             onClick={onViewInfo}
             className="flex flex-col cursor-pointer overflow-hidden text-left"
           >
-            <h2 className="font-extrabold text-sm truncate leading-tight text-neutral-900 dark:text-white">
+            <h2 className="font-bold text-xs truncate leading-tight text-black dark:text-white">
               {chat.title}
             </h2>
-            <span className="text-[11px] leading-tight flex items-center gap-1 font-medium text-neutral-600 dark:text-neutral-300">
+            <span className="text-[10px] leading-tight flex items-center gap-1">
               {isTyping ? (
-                <span className="text-pink-600 dark:text-pink-400 font-bold flex items-center gap-1">
-                  <span>sedang mengetik...</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                  <span>sedang mengetik</span>
+                  <span className="terminal-cursor">_</span>
                 </span>
               ) : (
-                <span>
+                <span className="text-neutral-500 truncate">
                   {chat.type === 'channel' 
                     ? 'Channel' 
                     : chat.type === 'group' 
@@ -283,8 +431,20 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           </div>
         </div>
 
-        {/* Header Right Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Header Right Actions (In-Chat Search, Voice/Video Call, Chat Info) */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setShowInChatSearch(!showInChatSearch)}
+            className={`w-8 h-8 flex items-center justify-center border border-black dark:border-white cursor-pointer transition-colors ${
+              showInChatSearch
+                ? 'bg-black text-white dark:bg-white dark:text-black'
+                : 'bg-white dark:bg-black text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900'
+            }`}
+            title="Cari dalam Percakapan Ini"
+          >
+            <Search className="w-3.5 h-3.5" />
+          </button>
+
           {chat.type === 'user' && (
             <>
               <button
@@ -292,7 +452,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   setIsVideoCall(false);
                   setShowCallModal(true);
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-white/90 dark:bg-neutral-800 hover:bg-white cursor-pointer text-neutral-900 dark:text-white transition-transform active:scale-95"
+                className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white"
                 title="Panggilan Suara"
               >
                 <Phone className="w-3.5 h-3.5" />
@@ -303,7 +463,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   setIsVideoCall(true);
                   setShowCallModal(true);
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-white/90 dark:bg-neutral-800 hover:bg-white cursor-pointer text-neutral-900 dark:text-white transition-transform active:scale-95"
+                className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white"
                 title="Panggilan Video"
               >
                 <VideoCallIcon className="w-3.5 h-3.5" />
@@ -313,7 +473,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
           <button
             onClick={onViewInfo}
-            className="w-8 h-8 flex items-center justify-center rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-white/90 dark:bg-neutral-800 hover:bg-white cursor-pointer text-neutral-900 dark:text-white shrink-0 transition-transform active:scale-95"
+            className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer text-black dark:text-white shrink-0"
             title="Detail Chat"
           >
             <MoreVertical className="w-4 h-4" />
@@ -321,20 +481,70 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         </div>
       </header>
 
-      {/* Messages Scroll View with Pastel Warm Tint Wallpaper */}
+      {/* In-Chat Search Bar Overlay */}
+      {showInChatSearch && (
+        <div className="px-3 py-1.5 border-b-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-2 text-xs shrink-0">
+          <div className="flex items-center gap-2 flex-1">
+            <Search className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+            <input
+              type="text"
+              value={inChatSearchQuery}
+              onChange={(e) => setInChatSearchQuery(e.target.value)}
+              placeholder="Cari pesan di sini..."
+              className="w-full bg-transparent text-xs text-black dark:text-white placeholder-neutral-500 focus:outline-hidden font-mono"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0 text-[10px]">
+            {searchMatches.length > 0 && (
+              <span className="font-bold mr-1">
+                {currentMatchIndex + 1}/{searchMatches.length}
+              </span>
+            )}
+            <button
+              onClick={handlePrevSearchMatch}
+              disabled={searchMatches.length === 0}
+              className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 cursor-pointer"
+              title="Pesan Sebelumnya"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleNextSearchMatch}
+              disabled={searchMatches.length === 0}
+              className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 cursor-pointer"
+              title="Pesan Berikutnya"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                setShowInChatSearch(false);
+                setInChatSearchQuery('');
+              }}
+              className="p-1 hover:text-red-500 cursor-pointer ml-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Messages Scroll View */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3 bg-[#FEFAF3] dark:bg-[#121212]"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3 bg-neutral-50 dark:bg-neutral-950"
       >
         {hasMoreHistory && (
-          <div className="text-center py-1">
+          <div className="text-center py-2">
             <button
               onClick={() => onLoadMoreHistory()}
               disabled={loadingMessages}
-              className="text-[11px] font-bold border-[1.5px] border-neutral-900 dark:border-neutral-700 rounded-full px-3 py-1 bg-white/90 dark:bg-neutral-800 cursor-pointer shadow-xs hover:bg-neutral-100"
+              className="text-[10px] border border-black dark:border-white px-2.5 py-1 bg-white dark:bg-black cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-900 font-bold"
             >
-              {loadingMessages ? 'Memuat riwayat...' : 'Muat pesan sebelumnya'}
+              {loadingMessages ? '[ Memuat riwayat... ]' : '[ Muat riwayat pesan sebelumnya ]'}
             </button>
           </div>
         )}
@@ -348,35 +558,35 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             <div
               key={msg.id}
               id={`msg-${msg.id}`}
-              className={`flex flex-col ${isOutgoing ? 'items-end' : 'items-start'} group transition-all duration-300`}
+              className={`flex flex-col ${isOutgoing ? 'items-end' : 'items-start'} group transition-all duration-300 rounded-xs`}
             >
-              {/* Message Bubble - Rounded Pastel Style */}
+              {/* Message Bubble */}
               <div
                 onClick={() => setSelectedMsgForMenu(msg)}
-                className={`max-w-[85%] sm:max-w-[75%] p-3 border-[1.5px] border-neutral-900 dark:border-neutral-700 shadow-xs cursor-pointer transition-transform active:scale-[0.99] ${
+                className={`max-w-[85%] sm:max-w-[70%] p-2.5 border-2 border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] cursor-pointer ${
                   isOutgoing
-                    ? 'bg-[#FCE7F3] dark:bg-[#831843] text-neutral-900 dark:text-white rounded-2xl rounded-tr-xs'
-                    : 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-2xl rounded-tl-xs'
+                    ? 'bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white'
+                    : 'bg-white dark:bg-black text-black dark:text-white'
                 }`}
               >
-                {/* Incoming sender name header */}
+                {/* Incoming header (in groups or channels) */}
                 {!isOutgoing && msg.senderName && chat.type !== 'user' && (
-                  <div className="text-[11px] font-bold text-pink-600 dark:text-pink-400 mb-1">
+                  <div className="text-[10px] font-bold text-neutral-600 dark:text-neutral-400 mb-1">
                     <span>{msg.senderName}</span>
                   </div>
                 )}
 
-                {/* Reply quote banner */}
+                {/* Reply quote banner with interactive jump */}
                 {msg.replyToMsgId && (
                   <div 
                     onClick={(e) => {
                       e.stopPropagation();
                       jumpToMessage(msg.replyToMsgId!);
                     }}
-                    className="mb-2 p-1.5 border-l-2 border-pink-500 bg-neutral-100 dark:bg-neutral-700/60 rounded-r-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity"
+                    className="mb-2 p-1.5 border-l-2 border-black dark:border-white bg-neutral-200 dark:bg-neutral-800 text-[10px] cursor-pointer hover:opacity-80 transition-opacity"
                     title="Klik untuk melompat ke pesan asli"
                   >
-                    <div className="font-bold text-neutral-800 dark:text-neutral-200 truncate">
+                    <div className="font-bold text-neutral-700 dark:text-neutral-300 truncate">
                       {msg.replyToSender || repliedMsg?.senderName || (repliedMsg?.isOutgoing ? 'Anda' : (chat.title || 'Balasan'))}
                     </div>
                     <div className="truncate text-neutral-500 dark:text-neutral-400 italic">
@@ -387,7 +597,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                 {/* Photo Media Preview */}
                 {media && media.type === 'photo' && (
-                  <div className="mb-2 rounded-xl border-[1.5px] border-neutral-900 dark:border-neutral-700 overflow-hidden bg-black max-h-64">
+                  <div className="mb-2 border border-black dark:border-white overflow-hidden bg-black max-h-64">
                     <img
                       src={apiClient.getMediaUrl(media.url)}
                       alt="Telegram media"
@@ -402,15 +612,15 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                 {/* Video Media Preview */}
                 {media && media.type === 'video' && (
-                  <div className="mb-2 rounded-xl border-[1.5px] border-neutral-900 dark:border-neutral-700 p-2.5 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-between gap-2 text-xs">
+                  <div className="mb-2 border border-black dark:border-white p-2 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 truncate">
                       <Video className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{media.fileName || 'Video'}</span>
+                      <span className="truncate font-bold text-[11px]">{media.fileName || 'Video'}</span>
                     </div>
                     <a
                       href={apiClient.getMediaUrl(media.url)}
                       download
-                      className="p-1 rounded-lg border border-neutral-900 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600"
+                      className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -418,9 +628,51 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   </div>
                 )}
 
-                {/* Document Preview */}
+                {/* Audio / Voice Note Player */}
+                {media && (media.type === 'audio' || media.type === 'voice') && (
+                  <div className="mb-2 border border-black dark:border-white p-2 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePlayAudio(msg.id, apiClient.getMediaUrl(media.url));
+                        }}
+                        className="w-7 h-7 border border-black dark:border-white flex items-center justify-center bg-white dark:bg-black hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
+                      >
+                        {playingAudioId === msg.id ? (
+                          <Pause className="w-3.5 h-3.5" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 translate-x-0.5" />
+                        )}
+                      </button>
+                      <div>
+                        <div className="font-bold text-[11px] flex items-center gap-1">
+                          <Volume2 className="w-3 h-3" />
+                          <span>{media.type === 'voice' ? 'Pesan Suara' : (media.fileName || 'Audio')}</span>
+                        </div>
+                        {media.duration && (
+                          <div className="text-[9px] text-neutral-500">
+                            {Math.floor(media.duration / 60)}:{(media.duration % 60).toString().padStart(2, '0')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <a
+                      href={apiClient.getMediaUrl(media.url)}
+                      download
+                      className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                )}
+
+                {/* Document/File Preview */}
                 {media && media.type === 'document' && (
-                  <div className="mb-2 rounded-xl border-[1.5px] border-neutral-900 dark:border-neutral-700 p-2.5 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-between gap-2 text-xs">
+                  <div className="mb-2 border border-black dark:border-white p-2 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 truncate">
                       <FileText className="w-4 h-4 shrink-0" />
                       <div className="truncate">
@@ -435,7 +687,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                     <a
                       href={apiClient.getMediaUrl(media.url)}
                       download
-                      className="p-1 rounded-lg border border-neutral-900 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 shrink-0"
+                      className="p-1 border border-black dark:border-white hover:bg-neutral-200 dark:hover:bg-neutral-800 shrink-0"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -445,9 +697,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                 {/* Call Action Card */}
                 {msg.callAction && (
-                  <div className="mb-2 p-2 rounded-xl border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-between gap-3 text-xs">
+                  <div className="mb-2 p-2 border border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full border border-neutral-900 dark:border-neutral-700 flex items-center justify-center bg-white dark:bg-neutral-800">
+                      <div className="w-7 h-7 border border-black dark:border-white flex items-center justify-center bg-white dark:bg-black">
                         {msg.callAction.isVideo ? (
                           <VideoCallIcon className="w-3.5 h-3.5" />
                         ) : (
@@ -463,7 +715,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                             ? 'Tak Terjawab'
                             : msg.callAction.duration
                             ? `${Math.floor(msg.callAction.duration / 60)}m ${msg.callAction.duration % 60}s`
-                            : 'Selesai'}
+                            : 'Panggilan selesai'}
                         </div>
                       </div>
                     </div>
@@ -474,7 +726,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                         setIsVideoCall(Boolean(msg.callAction?.isVideo));
                         setShowCallModal(true);
                       }}
-                      className="px-2.5 py-1 rounded-full border border-neutral-900 dark:border-neutral-700 text-[10px] font-bold bg-white dark:bg-neutral-800 hover:bg-neutral-200 cursor-pointer"
+                      className="px-2 py-1 border border-black dark:border-white text-[10px] font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
                     >
                       Panggil Balik
                     </button>
@@ -483,12 +735,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                 {/* Message Text with Link & Mention support */}
                 {msg.text && (
-                  <p className="text-xs whitespace-pre-wrap break-words leading-relaxed font-sans font-medium">
+                  <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
                     <FormattedText text={msg.text} onMentionClick={onMentionClick} />
                   </p>
                 )}
 
-                {/* Channel Comments Trigger */}
+                {/* Channel Post Discussion Trigger */}
                 {(chat.type === 'channel' || msg.hasComments || (msg.repliesCount && msg.repliesCount > 0)) && (
                   <div className="mt-2 pt-1.5 border-t border-dashed border-neutral-300 dark:border-neutral-700">
                     <button
@@ -497,26 +749,27 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                         e.stopPropagation();
                         setCommentsPost(msg);
                       }}
-                      className="py-1 px-2 rounded-lg border border-neutral-900 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-700 text-[10px] font-bold flex items-center gap-1.5 cursor-pointer text-neutral-900 dark:text-white transition-colors"
+                      className="py-1 px-2 border border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-[10px] font-bold flex items-center gap-1.5 cursor-pointer text-black dark:text-white transition-colors"
+                      title="Buka sesi komentar postingan ini"
                     >
-                      <MessageSquare className="w-3 h-3" />
+                      <MessageSquare className="w-3 h-3 text-black dark:text-white" />
                       <span>
-                        {msg.repliesCount ? `💬 ${msg.repliesCount} Komentar` : '💬 Buka Komentar'}
+                        {msg.repliesCount ? `[ 💬 ${msg.repliesCount} Komentar ]` : '[ 💬 Buka Komentar ]'}
                       </span>
                     </button>
                   </div>
                 )}
 
-                {/* Footer with time & read checks */}
-                <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-neutral-500 font-sans">
+                {/* Footer with accurate status (Centang 1 & Centang 2) */}
+                <div className="mt-1 flex items-center justify-end gap-1.5 text-[9px] text-neutral-500">
                   {msg.isEdited && <span className="italic">[diedit]</span>}
                   <span>{formatMessageTime(msg.date)}</span>
                   {isOutgoing && (
-                    <span>
+                    <span title={msg.isRead ? 'Dibaca (Centang 2)' : 'Terkirim (Centang 1)'}>
                       {msg.isRead ? (
-                        <CheckCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <CheckCheck className="w-3.5 h-3.5 text-black dark:text-white inline" />
                       ) : (
-                        <Check className="w-3.5 h-3.5 text-neutral-400" />
+                        <Check className="w-3.5 h-3.5 text-neutral-400 inline" />
                       )}
                     </span>
                   )}
@@ -531,9 +784,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
       {/* Reply Banner */}
       {replyTarget && (
-        <div className="px-4 py-2 border-t-[1.5px] border-neutral-900 dark:border-neutral-700 bg-[#FFFDF8] dark:bg-[#161616] flex items-center justify-between text-xs">
+        <div className="px-3 py-1.5 border-t-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-2 truncate">
-            <Reply className="w-3.5 h-3.5 text-pink-600 shrink-0" />
+            <Reply className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
             <div className="truncate">
               <span className="font-bold">Balas: </span>
               <span className="text-neutral-600 dark:text-neutral-400 truncate">{replyTarget.text || 'Media'}</span>
@@ -543,16 +796,16 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             onClick={() => setReplyTarget(null)}
             className="p-1 hover:text-black dark:hover:text-white cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
       {/* Editing Banner */}
       {editingTarget && (
-        <div className="px-4 py-2 border-t-[1.5px] border-neutral-900 dark:border-neutral-700 bg-[#FFFDF8] dark:bg-[#161616] flex items-center justify-between text-xs">
+        <div className="px-3 py-1.5 border-t-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-2 truncate">
-            <Edit2 className="w-3.5 h-3.5 text-pink-600 shrink-0" />
+            <Edit2 className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
             <span className="font-bold truncate">Mengubah Pesan</span>
           </div>
           <button
@@ -562,53 +815,117 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             }}
             className="p-1 hover:text-black dark:hover:text-white cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* Bottom Composer: Pill Input Container matching mockup */}
-      <div className="sticky bottom-0 z-20 border-t-[1.5px] border-neutral-900 dark:border-neutral-700 bg-[#FFFDF8] dark:bg-[#161616] p-2.5 shrink-0 shadow-lg">
-        <form onSubmit={handleSend} className="flex gap-2 items-center">
-          <div className="flex-1 flex items-center gap-2 rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 shadow-xs">
+      {/* Emoji Picker Popover */}
+      {showEmojiPicker && (
+        <div className="p-2 border-t border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          {COMMON_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => {
+                setInputText((prev) => prev + emoji);
+                setShowEmojiPicker(false);
+              }}
+              className="text-base p-1 hover:scale-125 transition-transform cursor-pointer"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Bottom Composer Bar */}
+      <div className="sticky bottom-0 z-20 border-t-2 border-black dark:border-white bg-white dark:bg-black p-2 shrink-0">
+        {isRecordingVoice ? (
+          /* Live Voice Recording Bar */
+          <div className="flex items-center justify-between gap-3 px-2 py-1 bg-neutral-100 dark:bg-neutral-900 border border-red-500 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+              <span className="font-bold text-red-600">
+                Merekam Suara: {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={cancelVoiceRecording}
+                className="px-2 py-1 border border-black dark:border-white text-xs font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={finishAndSendVoiceRecording}
+                className="px-3 py-1 border border-black dark:border-white bg-black dark:bg-white text-white dark:text-black text-xs font-bold hover:opacity-90 cursor-pointer"
+              >
+                Kirim
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Standard Input Form */
+          <form onSubmit={handleSend} className="flex gap-1.5 sm:gap-2 items-center">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-1 text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white cursor-pointer shrink-0"
+              className="w-8 h-8 flex items-center justify-center border border-black dark:border-white hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0"
               title="Kirim Foto / Berkas"
             >
-              <Paperclip className="w-4 h-4" />
+              <Paperclip className="w-4 h-4 text-black dark:text-white" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="w-8 h-8 flex items-center justify-center border border-black dark:border-white hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0 text-black dark:text-white"
+              title="Emoji"
+            >
+              <Smile className="w-4 h-4" />
             </button>
 
             <input
               type="text"
               value={inputText}
               onChange={handleInputChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder={editingTarget ? 'Ubah pesan...' : 'Ketik pesan...'}
-              className="flex-1 text-xs bg-transparent text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-hidden font-sans font-medium"
+              className="flex-1 border border-black dark:border-white px-3 py-1.5 text-xs bg-white dark:bg-black text-black dark:text-white placeholder-neutral-500 focus:outline-hidden"
             />
 
-            <button
-              type="button"
-              className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
-              title="Emoji"
-            >
-              <Smile className="w-4 h-4" />
-            </button>
-          </div>
-
-          <button
-            type="submit"
-            disabled={!inputText.trim() || sending}
-            className="w-10 h-10 rounded-full border-[1.5px] border-neutral-900 dark:border-neutral-700 bg-[#F472B6] hover:bg-[#EC4899] text-white flex items-center justify-center shadow-xs transition-transform active:scale-95 disabled:opacity-40 cursor-pointer shrink-0"
-            title="Kirim"
-          >
-            <SendIcon className="w-4 h-4 translate-x-0.5" />
-          </button>
-        </form>
+            {!inputText.trim() && !editingTarget ? (
+              <button
+                type="button"
+                onClick={startVoiceRecording}
+                className="w-8 h-8 flex items-center justify-center border border-black dark:border-white bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shrink-0 text-black dark:text-white"
+                title="Rekam Pesan Suara"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!inputText.trim() || sending}
+                className="py-1.5 px-3 border border-black dark:border-white bg-black dark:bg-white text-white dark:text-black font-bold text-xs tracking-wider hover:opacity-90 disabled:opacity-40 cursor-pointer shrink-0"
+              >
+                {editingTarget ? '[ UBAH ]' : '[ KIRIM ]'}
+              </button>
+            )}
+          </form>
+        )}
       </div>
 
-      {/* Message Context Action Popover Modal */}
+      {/* Message Context Action Modal */}
       {selectedMsgForMenu && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-mono"
@@ -623,6 +940,22 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               <button onClick={() => setSelectedMsgForMenu(null)}>
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* Quick Reactions Bar */}
+            <div className="flex items-center justify-between p-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700">
+              {['👍', '❤️', '🔥', '😂', '👏'].map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    handleSend();
+                    setSelectedMsgForMenu(null);
+                  }}
+                  className="text-base p-1 hover:scale-125 transition-transform cursor-pointer"
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
 
             {/* Reply */}
@@ -675,7 +1008,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               </button>
             )}
 
-            {/* Delete (only if outgoing or admin) */}
+            {/* Delete (only if outgoing) */}
             {selectedMsgForMenu.isOutgoing && (
               <button
                 onClick={async () => {
@@ -752,6 +1085,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           />
         </div>
       )}
+
       {/* Channel Comments / Discussion Thread Modal */}
       {commentsPost && (
         <ChannelCommentsModal
