@@ -27,25 +27,25 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   };
 
   return (
-    <div className="w-full bg-blue-50/90 dark:bg-neutral-800/80 backdrop-blur-md border-b border-blue-100 dark:border-neutral-700/60 px-3 py-1.5 flex items-center justify-between text-xs select-none transition-all animate-in fade-in slide-in-from-top-1 duration-150">
+    <div className="w-full bg-neutral-100 dark:bg-neutral-900 border-b-2 border-black dark:border-white px-4 py-2 flex items-center justify-between text-xs font-mono select-none transition-all shadow-xs">
       <div 
         onClick={() => onJumpToMessage(pinnedMessage.id)}
         className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
       >
-        <div className="w-6 h-6 rounded-lg bg-blue-500/10 dark:bg-blue-400/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+        <div className="w-6 h-6 rounded-md bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white flex items-center justify-center shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)]">
           <Pin className="w-3.5 h-3.5 rotate-45" />
         </div>
 
         <div className="flex flex-col min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-            <span>Pesan Tersemat</span>
+          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-black dark:text-white">
+            <span>Pinned Message</span>
             {totalPinnedCount > 1 && (
-              <span className="text-[9px] bg-blue-200 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 px-1 rounded-sm">
+              <span className="text-[9px] bg-black text-white dark:bg-white dark:text-black px-1 rounded-xs font-bold">
                 +{totalPinnedCount - 1}
               </span>
             )}
           </div>
-          <p className="text-[11px] text-neutral-800 dark:text-neutral-200 truncate font-medium">
+          <p className="text-[11px] text-neutral-700 dark:text-neutral-300 truncate font-mono">
             {getPreviewText()}
           </p>
         </div>
@@ -54,19 +54,19 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
       <div className="flex items-center gap-1 shrink-0 ml-2">
         <button
           onClick={() => onJumpToMessage(pinnedMessage.id)}
-          className="p-1 text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
-          title="Lompat ke pesan"
+          className="p-1 text-black dark:text-white hover:scale-110 transition-transform cursor-pointer"
+          title="Jump to message"
         >
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-4 h-4 stroke-[2.5]" />
         </button>
 
         {onUnpin && (
           <button
             onClick={() => onUnpin(pinnedMessage.id)}
-            className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer rounded-full hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
-            title="Lepas sematan"
+            className="p-1 text-neutral-500 hover:text-black dark:hover:text-white cursor-pointer rounded-full"
+            title="Unpin message"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
         )}
       </div>

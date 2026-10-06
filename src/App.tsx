@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RetroHeader } from '@/components/RetroHeader';
-import { RetroTopTabs, MainTabType } from '@/components/RetroTabs';
+import type { MainTabType } from '@/components/RetroTabs';
 import { RetroDrawer } from '@/components/RetroDrawer';
 import { LoginView } from '@/components/LoginView';
 import { ChatListView } from '@/components/ChatListView';
@@ -16,7 +16,7 @@ import { SettingsView } from '@/components/SettingsView';
 import { EditProfileModal } from '@/components/EditProfileModal';
 import { AddContactModal } from '@/components/AddContactModal';
 import { CallModal } from '@/components/CallModal';
-import { MessageSquare, Plus, Settings } from 'lucide-react';
+import { MessageSquare, Plus, Settings, Users, Phone } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { 
   UserProfile, 
@@ -906,30 +906,23 @@ export default function GramApp() {
               selectedChat ? 'hidden md:flex' : 'flex'
             }`}
           >
-            {/* Header: Menu + Quick Switcher + Theme Toggle */}
-            <RetroHeader
-              title="GRAM"
-              subtitle="open source messenger"
-              showMenu={true}
-              onMenuClick={() => setIsDrawerOpen(true)}
-              currentUser={currentUser}
-              accounts={accounts}
-              onSwitchAccount={handleSwitchAccount}
-              onAddAccount={() => setIsAddingAccount(true)}
-              isDarkMode={isDarkMode}
-              onToggleDarkMode={toggleDarkMode}
-            />
+            {/* Clean top header for non-chat views or drawer */}
+            {activeTab !== 'chats' && (
+              <RetroHeader
+                title={activeTab.toUpperCase()}
+                subtitle="open source messenger"
+                showBack={true}
+                onBack={() => setActiveTab('chats')}
+                currentUser={currentUser}
+                accounts={accounts}
+                onSwitchAccount={handleSwitchAccount}
+                onAddAccount={() => setIsAddingAccount(true)}
+                isDarkMode={isDarkMode}
+                onToggleDarkMode={toggleDarkMode}
+              />
+            )}
 
-            {/* Top Navigation Tabs */}
-            <RetroTopTabs
-              activeTab={activeTab}
-              onChangeTab={setActiveTab}
-              chatsCount={chats.length}
-              unreadCount={unreadTotal}
-              callsCount={calls.length}
-            />
-
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden relative">
               {activeTab === 'chats' && (
                 <ChatListView
                   chats={chats}
@@ -995,41 +988,66 @@ export default function GramApp() {
               )}
             </div>
 
-            {/* Bottom Floating Navigation Dock (Matching Mockup 1:1) */}
-            <div className="p-3 border-t border-neutral-100 dark:border-neutral-900 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md flex items-center justify-around shrink-0 z-10">
+            {/* Bottom Navigation Dock (Matching Mockup 1:1, Neobrutalism Monochrome) */}
+            <nav 
+              aria-label="Navigasi Utama"
+              className="h-16 border-t-2 border-black dark:border-white bg-white dark:bg-black flex items-center justify-around px-2 shrink-0 z-20 font-mono select-none"
+            >
+              {/* Messages Tab */}
               <button
                 onClick={() => setActiveTab('chats')}
-                className={`p-2 rounded-full cursor-pointer transition-colors ${
-                  activeTab === 'chats'
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-neutral-900'
-                    : 'text-neutral-400 hover:text-black dark:hover:text-white'
-                }`}
-                title="Semua Obrolan"
+                className="flex flex-col items-center justify-center gap-1 cursor-pointer py-1 flex-1 text-black dark:text-white"
+                title="Messages"
               >
-                <MessageSquare className="w-5 h-5" />
+                <div className="relative">
+                  <MessageSquare className={`w-6 h-6 stroke-[2] ${activeTab === 'chats' ? 'opacity-100' : 'opacity-40 hover:opacity-75'}`} />
+                  {unreadTotal > 0 && (
+                    <span className="absolute -top-1 -right-2 px-1 text-[9px] font-bold bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white rounded-full">
+                      {unreadTotal}
+                    </span>
+                  )}
+                </div>
+                {activeTab === 'chats' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white" />
+                )}
               </button>
 
+              {/* Contacts Tab */}
               <button
-                onClick={() => setIsAddingContact(true)}
-                className="px-5 py-2.5 rounded-full bg-neutral-950 dark:bg-white text-white dark:text-black text-xs font-semibold flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                title="Mulai Obrolan / Kontak Baru"
+                onClick={() => setActiveTab('contacts')}
+                className="flex flex-col items-center justify-center gap-1 cursor-pointer py-1 flex-1 text-black dark:text-white"
+                title="Contacts"
               >
-                <Plus className="w-4 h-4" />
-                <span>New Chat</span>
+                <Users className={`w-6 h-6 stroke-[2] ${activeTab === 'contacts' ? 'opacity-100' : 'opacity-40 hover:opacity-75'}`} />
+                {activeTab === 'contacts' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white" />
+                )}
               </button>
 
+              {/* Calls Tab */}
+              <button
+                onClick={() => setActiveTab('calls')}
+                className="flex flex-col items-center justify-center gap-1 cursor-pointer py-1 flex-1 text-black dark:text-white"
+                title="Calls"
+              >
+                <Phone className={`w-6 h-6 stroke-[2] ${activeTab === 'calls' ? 'opacity-100' : 'opacity-40 hover:opacity-75'}`} />
+                {activeTab === 'calls' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white" />
+                )}
+              </button>
+
+              {/* Settings Tab */}
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`p-2 rounded-full cursor-pointer transition-colors ${
-                  activeTab === 'settings'
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-neutral-900'
-                    : 'text-neutral-400 hover:text-black dark:hover:text-white'
-                }`}
-                title="Pengaturan"
+                className="flex flex-col items-center justify-center gap-1 cursor-pointer py-1 flex-1 text-black dark:text-white"
+                title="Settings"
               >
-                <Settings className="w-5 h-5" />
+                <Settings className={`w-6 h-6 stroke-[2] ${activeTab === 'settings' ? 'opacity-100' : 'opacity-40 hover:opacity-75'}`} />
+                {activeTab === 'settings' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white" />
+                )}
               </button>
-            </div>
+            </nav>
           </div>
 
           {/* Right Column: Conversation View */}

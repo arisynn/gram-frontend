@@ -8,8 +8,6 @@ import {
   Search, 
   Sparkles, 
   Mic, 
-  MicOff, 
-  Square, 
   Send, 
   X, 
   Check, 
@@ -18,10 +16,10 @@ import {
   Download, 
   Play, 
   Pause, 
-  Volume2,
+  Phone,
+  Bookmark,
   Users,
   Landmark,
-  Bookmark,
   Pin
 } from 'lucide-react';
 import type { ChatSummary, ChatMessage, StickerItem } from '@/shared/types';
@@ -270,44 +268,44 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const avatar = chat.avatarUrl || apiClient.getAvatarUrl(chat.id);
 
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-neutral-950 font-sans select-none overflow-hidden relative text-neutral-900 dark:text-neutral-100">
+    <div className="w-full h-full flex flex-col bg-white dark:bg-black font-mono select-none overflow-hidden relative text-black dark:text-white">
       
       {/* Hidden file input */}
       <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
 
       {/* Copied Notice Banner */}
       {copiedNotice && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-black/85 text-white px-3 py-1 text-xs rounded-full shadow-lg flex items-center gap-1.5 backdrop-blur-md">
-          <Check className="w-3.5 h-3.5 text-emerald-400" />
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-black text-white dark:bg-white dark:text-black border-2 border-black dark:border-white px-3.5 py-1.5 text-xs rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] flex items-center gap-1.5 font-bold">
+          <Check className="w-3.5 h-3.5" />
           <span>Teks berhasil disalin</span>
         </div>
       )}
 
-      {/* 1. Header (Matching Reference Image 1 & 2 Right) */}
-      <header className="px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-900 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+      {/* 1. Header (Matching Mockup 1:1, Neobrutalism Monochrome) */}
+      <header className="px-4 py-3 border-b-2 border-black dark:border-white bg-white dark:bg-black flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Back button with badge */}
+          {/* Back button */}
           <button
             onClick={onBack}
-            className="p-1 -ml-1 text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+            className="w-9 h-9 rounded-full border-2 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)] active:scale-95 transition-transform"
             title="Kembali"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
           {/* Circular Avatar */}
           <div 
             onClick={onViewInfo}
-            className="w-10 h-10 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center font-bold text-sm shrink-0 cursor-pointer"
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center font-bold text-sm shrink-0 cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)]"
           >
             {avatar ? (
               <img src={avatar} alt={chat.title} className="w-full h-full object-cover" />
             ) : chat.type === 'saved' ? (
-              <Bookmark className="w-4 h-4 text-blue-500" />
+              <Bookmark className="w-4 h-4" />
             ) : chat.type === 'group' ? (
-              <Users className="w-4 h-4 text-emerald-500" />
+              <Users className="w-4 h-4" />
             ) : chat.type === 'channel' ? (
-              <Landmark className="w-4 h-4 text-purple-500" />
+              <Landmark className="w-4 h-4" />
             ) : (
               chat.title.charAt(0).toUpperCase()
             )}
@@ -315,13 +313,13 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
           {/* Contact Name & Status */}
           <div onClick={onViewInfo} className="flex flex-col min-w-0 cursor-pointer text-left">
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-white truncate">
+            <h2 className="text-sm font-bold text-black dark:text-white truncate">
               {chat.title}
             </h2>
-            <span className="text-[11px] text-neutral-400 truncate">
+            <span className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
               {isTyping ? (
-                <span className="text-blue-600 dark:text-blue-400 font-medium animate-pulse">
-                  sedang mengetik...
+                <span className="font-bold animate-pulse">
+                  mengetik...
                 </span>
               ) : (
                 chat.type === 'channel' ? 'Channel' : chat.type === 'group' ? 'Grup' : (chat.username ? `@${chat.username}` : 'online')
@@ -330,22 +328,33 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           </div>
         </div>
 
-        {/* Header Right Actions: Search & More */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Header Right Actions: Call, Search & More (Neobrutalism Monochrome) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Audio Call Button */}
+          {chat.type === 'user' && onStartCall && (
+            <button
+              onClick={() => onStartCall(chat.id, chat.title, false)}
+              className="w-9 h-9 rounded-full border-2 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)] transition-transform active:scale-95"
+              title="Panggilan Suara"
+            >
+              <Phone className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
+
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="p-2 text-neutral-500 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+            className="w-9 h-9 rounded-full border-2 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)] transition-transform active:scale-95"
             title="Cari dalam obrolan"
           >
-            <Search className="w-4 h-4" />
+            <Search className="w-4 h-4 stroke-[2.5]" />
           </button>
 
           <button
             onClick={onViewInfo}
-            className="p-2 text-neutral-500 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+            className="w-9 h-9 rounded-full border-2 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)] transition-transform active:scale-95"
             title="Info Obrolan"
           >
-            <MoreVertical className="w-4 h-4" />
+            <MoreVertical className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
       </header>
@@ -359,19 +368,20 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         />
       )}
 
-      {/* In-Chat Search Bar */}
+      {/* In-Chat Search Bar (Neobrutalism Monochrome) */}
       {showSearch && (
-        <div className="px-4 py-2 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900 flex items-center gap-2">
-          <Search className="w-4 h-4 text-neutral-400" />
+        <div className="px-4 py-2 border-b-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center gap-2">
+          <Search className="w-4 h-4 opacity-70" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari pesan di sini..."
-            className="w-full text-xs bg-transparent focus:outline-hidden"
+            placeholder="Search in chat..."
+            className="w-full text-xs bg-transparent focus:outline-hidden font-mono"
+            autoFocus
           />
-          <button onClick={() => setShowSearch(false)} className="text-xs text-neutral-400 hover:text-black">
-            Batal
+          <button onClick={() => setShowSearch(false)} className="text-xs font-bold hover:underline cursor-pointer">
+            Cancel
           </button>
         </div>
       )}
@@ -379,17 +389,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       {/* 2. Chat Messages Stream */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-white dark:bg-black"
       >
         {loadingMessages && (
-          <div className="text-center py-4 text-xs text-neutral-400">
+          <div className="text-center py-4 text-xs text-neutral-500">
             [ Memuat riwayat pesan... ]
           </div>
         )}
 
-        {/* Date Pill Divider (Matching Mockup: Centered "Today") */}
+        {/* Date Pill Divider (Matching Mockup: Centered "Today", Neobrutalist Monochrome) */}
         <div className="flex justify-center my-3">
-          <span className="text-[11px] font-semibold text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-3 py-1 rounded-full">
+          <span className="text-[10px] font-black tracking-widest text-black dark:text-white bg-white dark:bg-black border-2 border-black dark:border-white px-3 py-1 rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] uppercase">
             Today
           </span>
         </div>
@@ -405,7 +415,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               key={msg.id}
               className={`flex flex-col group transition-all duration-300 ${
                 isOut ? 'items-end' : 'items-start'
-              } ${isHighlighted ? 'scale-102 ring-2 ring-blue-500 rounded-2xl p-1' : ''}`}
+              } ${isHighlighted ? 'scale-102 ring-2 ring-black dark:ring-white rounded-2xl p-1' : ''}`}
             >
               {/* STICKER RENDERING (Seamless Transparent background, No solid bubble) */}
               {isSticker && msg.media?.url ? (
@@ -431,7 +441,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                     />
                   )}
                   {msg.reactions && msg.reactions.length > 0 && (
-                    <div className="absolute -bottom-2 right-2 flex items-center gap-1 bg-white dark:bg-neutral-800 shadow-md border border-neutral-200 dark:border-neutral-700 px-1.5 py-0.5 rounded-full text-xs">
+                    <div className="absolute -bottom-2 right-2 flex items-center gap-1 bg-white dark:bg-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)] border border-black dark:border-white px-1.5 py-0.5 rounded-full text-xs">
                       {msg.reactions.map((r) => (
                         <span key={r.emoji}>{r.emoji} {r.count > 1 ? r.count : ''}</span>
                       ))}
@@ -439,13 +449,13 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   )}
                 </div>
               ) : (
-                /* STANDARD CHAT BUBBLE (Matching Mockup: Soft curved bubbles) */
+                /* STANDARD CHAT BUBBLE (Pure Neobrutalism & Monochrome, 100% Matching Layout) */
                 <div
                   onClick={() => setActiveSheetMsg(msg)}
-                  className={`relative p-3.5 text-sm cursor-pointer shadow-2xs transition-all ${
+                  className={`relative p-3.5 text-xs sm:text-sm cursor-pointer transition-all border-2 ${
                     isOut
-                      ? 'bg-blue-600 text-white rounded-3xl rounded-tr-xs max-w-[82%] sm:max-w-[70%]'
-                      : 'bg-neutral-100 dark:bg-neutral-800/90 text-neutral-900 dark:text-neutral-100 rounded-3xl rounded-tl-xs max-w-[82%] sm:max-w-[70%]'
+                      ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] rounded-2xl rounded-tr-xs max-w-[85%] sm:max-w-[72%]'
+                      : 'bg-neutral-100 text-black dark:bg-neutral-900 dark:text-white border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] rounded-2xl rounded-tl-xs max-w-[85%] sm:max-w-[72%]'
                   }`}
                 >
                   {/* Pinned Icon indicator */}
@@ -463,16 +473,16 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                         e.stopPropagation();
                         handleJumpToMessage(msg.replyToMsgId!);
                       }}
-                      className={`mb-1.5 px-2.5 py-1 text-xs rounded-xl border-l-2 cursor-pointer ${
+                      className={`mb-2 px-2.5 py-1 text-xs rounded-lg border-l-3 cursor-pointer ${
                         isOut
-                          ? 'bg-blue-700/60 border-white text-blue-100'
-                          : 'bg-neutral-200/60 dark:bg-neutral-700/60 border-blue-500 text-neutral-600 dark:text-neutral-300'
+                          ? 'bg-white/15 dark:bg-black/15 border-white dark:border-black text-white dark:text-black'
+                          : 'bg-black/5 dark:bg-white/5 border-black dark:border-white text-black dark:text-white'
                       }`}
                     >
-                      <span className="font-semibold block text-[10px]">
+                      <span className="font-bold block text-[10px] uppercase">
                         {msg.replyToSender || 'Balasan'}
                       </span>
-                      <span className="truncate block opacity-85">
+                      <span className="truncate block opacity-80 font-mono">
                         {msg.replyToText || 'Pesan'}
                       </span>
                     </div>
@@ -480,12 +490,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                   {/* Media Content */}
                   {msg.media && (
-                    <div className="mb-2 rounded-2xl overflow-hidden">
+                    <div className="mb-2 rounded-xl overflow-hidden border border-current">
                       {msg.media.type === 'photo' && (
                         <img
                           src={msg.media.url}
                           alt="Photo"
-                          className="max-h-60 w-full object-cover rounded-2xl cursor-pointer hover:opacity-95"
+                          className="max-h-60 w-full object-cover rounded-xl cursor-pointer hover:opacity-95"
                           onClick={(e) => {
                             e.stopPropagation();
                             setPreviewMediaUrl(msg.media!.url);
@@ -496,11 +506,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                         <video
                           src={msg.media.url}
                           controls
-                          className="max-h-60 w-full rounded-2xl"
+                          className="max-h-60 w-full rounded-xl"
                         />
                       )}
                       {(msg.media.type === 'voice' || msg.media.type === 'audio') && (
-                        <div className="flex items-center gap-2 py-1">
+                        <div className="flex items-center gap-2 p-1.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -515,13 +525,15 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                                 setPlayingAudioId(msg.id);
                               }
                             }}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer ${
-                              isOut ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer border ${
+                              isOut 
+                                ? 'bg-white text-black dark:bg-black dark:text-white border-white dark:border-black' 
+                                : 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white'
                             }`}
                           >
                             {playingAudioId === msg.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                           </button>
-                          <div className="text-xs font-medium">
+                          <div className="text-xs font-mono font-bold">
                             {msg.media.duration ? formatDuration(msg.media.duration) : 'Pesan Suara'}
                           </div>
                         </div>
@@ -531,11 +543,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                           href={msg.media.url}
                           download={msg.media.fileName}
                           onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-2 p-2 bg-black/10 dark:bg-white/10 rounded-xl"
+                          className="flex items-center gap-2 p-2 bg-black/10 dark:bg-white/10 rounded-lg"
                         >
                           <FileText className="w-5 h-5 shrink-0" />
                           <div className="min-w-0 flex-1 truncate text-xs">
-                            <span className="font-semibold truncate block">{msg.media.fileName || 'Berkas'}</span>
+                            <span className="font-bold truncate block">{msg.media.fileName || 'Berkas'}</span>
                           </div>
                           <Download className="w-4 h-4 shrink-0 opacity-80" />
                         </a>
@@ -545,19 +557,19 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                   {/* Text Message with Formatted parsing */}
                   {msg.text && (
-                    <div className="break-words leading-relaxed">
+                    <div className="break-words leading-relaxed font-mono">
                       <FormattedText text={msg.text} onMentionClick={onMentionClick} />
                     </div>
                   )}
 
                   {/* Time & Read Receipts */}
-                  <div className={`flex items-center justify-end gap-1 text-[10px] mt-1 ${
-                    isOut ? 'text-blue-200' : 'text-neutral-400'
+                  <div className={`flex items-center justify-end gap-1.5 text-[10px] mt-1.5 font-mono ${
+                    isOut ? 'text-neutral-300 dark:text-neutral-700' : 'text-neutral-500 dark:text-neutral-400'
                   }`}>
                     <span>{formatMsgTime(msg.date)}</span>
                     {msg.isEdited && <span>(diedit)</span>}
                     {isOut && (
-                      <span className="inline-flex">
+                      <span className="inline-flex text-white dark:text-black">
                         {msg.isRead ? <CheckCheck className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
                       </span>
                     )}
@@ -565,7 +577,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                   {/* Reactions Pill Display on Bubble */}
                   {msg.reactions && msg.reactions.length > 0 && (
-                    <div className="absolute -bottom-2.5 right-2 flex items-center gap-1 bg-white dark:bg-neutral-900 shadow-md border border-neutral-200/80 dark:border-neutral-700 px-2 py-0.5 rounded-full text-xs font-semibold z-10">
+                    <div className="absolute -bottom-2.5 right-2 flex items-center gap-1 bg-white dark:bg-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)] border border-black dark:border-white px-2 py-0.5 rounded-full text-xs font-bold z-10 text-black dark:text-white">
                       {msg.reactions.map((r) => (
                         <span key={r.emoji}>{r.emoji} {r.count > 1 ? r.count : ''}</span>
                       ))}
@@ -579,15 +591,15 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Reply / Edit Banner above Composer */}
+      {/* Reply / Edit Banner above Composer (Neobrutalism Monochrome) */}
       {(replyTarget || editingTarget) && (
-        <div className="px-4 py-2 border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900/80 flex items-center justify-between text-xs">
+        <div className="px-4 py-2 border-t-2 border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 flex items-center justify-between text-xs font-mono">
           <div className="min-w-0 flex-1">
-            <span className="font-semibold text-blue-600 dark:text-blue-400 block text-[11px]">
-              {editingTarget ? 'Edit Pesan' : `Membalas ${replyTarget?.senderName || 'Pesan'}`}
+            <span className="font-bold block text-[11px] text-black dark:text-white uppercase">
+              {editingTarget ? 'Edit Message' : `Replying to ${replyTarget?.senderName || 'Message'}`}
             </span>
-            <span className="text-neutral-500 truncate block text-[11px]">
-              {editingTarget?.text || replyTarget?.text || '[Lampiran Media]'}
+            <span className="text-neutral-600 dark:text-neutral-400 truncate block text-[11px]">
+              {editingTarget?.text || replyTarget?.text || '[Media Attachment]'}
             </span>
           </div>
           <button 
@@ -595,55 +607,55 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               setReplyTarget(null);
               setEditingTarget(null);
             }}
-            className="p-1 text-neutral-400 hover:text-black dark:hover:text-white"
+            className="w-6 h-6 rounded-full border border-black dark:border-white bg-white dark:bg-black flex items-center justify-center text-black dark:text-white cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* 3. Modern Curved Composer Bar (Matching Reference Image 2 Right) */}
-      <footer className="p-3 sm:p-4 border-t border-neutral-100 dark:border-neutral-900 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md shrink-0">
+      {/* 3. Composer Bar (Matching Mockup 1:1, Neobrutalism Monochrome) */}
+      <footer className="p-3 border-t-2 border-black dark:border-white bg-white dark:bg-black font-mono shrink-0">
         <form onSubmit={handleSend} className="flex items-center gap-2 max-w-4xl mx-auto">
           {/* (+) Attachment Button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors shrink-0 cursor-pointer"
+            className="w-11 h-11 rounded-full border-2 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] active:scale-95 transition-transform shrink-0 cursor-pointer"
             title="Kirim Foto, Video, atau Berkas"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-5 h-5 stroke-[2.5]" />
           </button>
 
           {/* Voice Recording Active Bar */}
           {isRecordingVoice ? (
-            <div className="flex-1 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-full px-4 py-2 flex items-center justify-between animate-pulse">
-              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-xs font-semibold">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-                <span>Merekam: {formatDuration(recordingSeconds)}</span>
+            <div className="flex-1 bg-black text-white dark:bg-white dark:text-black border-2 border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] rounded-full px-4 py-2 flex items-center justify-between animate-pulse">
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-white dark:bg-black animate-ping" />
+                <span>REC: {formatDuration(recordingSeconds)}</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={cancelVoiceRecording}
-                  className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer"
-                  title="Batal"
+                  className="w-7 h-7 rounded-full border border-current flex items-center justify-center cursor-pointer"
+                  title="Cancel"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={stopVoiceRecording}
-                  className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center cursor-pointer shadow-sm"
-                  title="Kirim Pesan Suara"
+                  className="w-7 h-7 rounded-full bg-white text-black dark:bg-black dark:text-white border border-current flex items-center justify-center cursor-pointer"
+                  title="Send Voice Note"
                 >
-                  <Check className="w-4 h-4" />
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               </div>
             </div>
           ) : (
-            /* Rounded Pill Input Bar */
-            <div className="flex-1 bg-neutral-100 dark:bg-neutral-900 rounded-full px-4 py-2 flex items-center gap-2 border border-neutral-200/70 dark:border-neutral-800">
+            /* Rounded Pill Input Bar (Neobrutalism Monochrome) */
+            <div className="flex-1 bg-neutral-100 dark:bg-neutral-900 rounded-full px-4 py-2 flex items-center gap-2 border-2 border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)]">
               <input
                 type="text"
                 value={inputText}
@@ -651,22 +663,18 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   setInputText(e.target.value);
                   if (onSendTyping) onSendTyping();
                 }}
-                placeholder="Tulis pesan..."
-                className="w-full bg-transparent text-sm text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-hidden font-normal"
+                placeholder="Message..."
+                className="w-full bg-transparent text-xs sm:text-sm font-mono text-black dark:text-white placeholder-neutral-500 focus:outline-hidden"
               />
 
               {/* Sticker / Video Emoji Drawer Toggle Button */}
               <button
                 type="button"
                 onClick={() => setShowStickerPicker(!showStickerPicker)}
-                className={`p-1 rounded-full cursor-pointer transition-colors ${
-                  showStickerPicker 
-                    ? 'text-blue-600 dark:text-blue-400' 
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200'
-                }`}
+                className="p-1 rounded-full cursor-pointer hover:scale-110 active:scale-90 transition-transform text-black dark:text-white"
                 title="Stiker & Emoji Video"
               >
-                <Sparkles className="w-5 h-5" />
+                <Sparkles className="w-5 h-5 stroke-[2]" />
               </button>
 
               {/* Voice Note Recording Button */}
@@ -674,10 +682,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 <button
                   type="button"
                   onClick={startVoiceRecording}
-                  className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 rounded-full cursor-pointer transition-colors"
+                  className="p-1 text-black dark:text-white rounded-full cursor-pointer hover:scale-110 active:scale-90 transition-transform"
                   title="Rekam Pesan Suara"
                 >
-                  <Mic className="w-5 h-5" />
+                  <Mic className="w-5 h-5 stroke-[2]" />
                 </button>
               )}
             </div>
@@ -688,10 +696,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             <button
               type="submit"
               disabled={sending}
-              className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-500 transition-transform active:scale-90 cursor-pointer shadow-md shrink-0"
+              className="w-11 h-11 rounded-full bg-black text-white dark:bg-white dark:text-black border-2 border-black dark:border-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0"
               title="Kirim"
             >
-              <Send className="w-4 h-4 ml-0.5" />
+              <Send className="w-4 h-4 ml-0.5 stroke-[2.5]" />
             </button>
           )}
         </form>
@@ -707,7 +715,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         />
       )}
 
-      {/* Interactive Action Sheet (Matching Reference Mockup 1:1) */}
+      {/* Interactive Action Sheet (Matching Mockup 1:1, Neobrutalism Monochrome) */}
       <MessageActionSheet
         isOpen={Boolean(activeSheetMsg)}
         onClose={() => setActiveSheetMsg(null)}
@@ -746,14 +754,14 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         >
           <button 
             onClick={() => setPreviewMediaUrl(null)}
-            className="absolute top-4 right-4 text-white p-2 rounded-full bg-white/10 hover:bg-white/20"
+            className="absolute top-4 right-4 text-white p-2 rounded-full border-2 border-white bg-black hover:bg-neutral-800 cursor-pointer shadow-[2px_2px_0px_0px_rgba(255,255,255,1)]"
           >
-            <X className="w-6 h-6" />
+            <X className="w-6 h-6 stroke-[2.5]" />
           </button>
           <img 
             src={previewMediaUrl} 
             alt="Preview" 
-            className="max-w-full max-h-[90vh] object-contain rounded-2xl" 
+            className="max-w-full max-h-[90vh] object-contain rounded-2xl border-2 border-white shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]" 
           />
         </div>
       )}

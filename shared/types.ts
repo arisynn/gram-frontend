@@ -30,6 +30,7 @@ export interface ChatSummary {
     text: string;
     date: number;
     isOutgoing: boolean;
+    isRead?: boolean;
     mediaType?: 'photo' | 'video' | 'document';
   };
 }

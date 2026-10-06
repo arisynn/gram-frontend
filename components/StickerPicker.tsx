@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Smile, Sparkles, Film, Search, X, Loader2 } from 'lucide-react';
+import { Smile, Sparkles, Film, X, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { StickerSet, StickerItem } from '@/shared/types';
 
@@ -126,7 +126,6 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   const [stickerSets, setStickerSets] = useState<StickerSet[]>([]);
   const [selectedSet, setSelectedSet] = useState<StickerSet | null>(null);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -176,63 +175,70 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
     : DEFAULT_CURATED_STICKERS;
 
   return (
-    <div className="absolute bottom-16 right-2 sm:right-6 z-40 w-80 sm:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl rounded-2xl overflow-hidden flex flex-col font-sans animate-in fade-in slide-in-from-bottom-2 duration-150">
-      {/* Top Header & Tabs */}
-      <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/70 dark:bg-neutral-900/70 backdrop-blur-md">
-        <div className="flex items-center gap-1 bg-neutral-200/60 dark:bg-neutral-800 p-0.5 rounded-xl">
+    <div className="absolute bottom-18 right-2 sm:right-6 z-40 w-80 sm:w-96 bg-white dark:bg-black border-2 border-black dark:border-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] rounded-2xl overflow-hidden flex flex-col font-mono animate-in fade-in slide-in-from-bottom-2 duration-150">
+      {/* Top Header & Tabs (Neobrutalism Monochrome) */}
+      <div className="p-2.5 border-b-2 border-black dark:border-white flex items-center justify-between bg-neutral-100 dark:bg-neutral-900">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setActiveTab('stickers')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
               activeTab === 'stickers'
-                ? 'bg-white dark:bg-neutral-700 text-black dark:text-white shadow-xs'
-                : 'text-neutral-500 hover:text-black dark:hover:text-white'
+                ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)]'
+                : 'bg-white dark:bg-black text-neutral-600 dark:text-neutral-400 border-black/20 dark:border-white/20 hover:border-black dark:hover:border-white'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-            <span>Stiker</span>
+            <span className="flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Stiker</span>
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('video')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
               activeTab === 'video'
-                ? 'bg-white dark:bg-neutral-700 text-black dark:text-white shadow-xs'
-                : 'text-neutral-500 hover:text-black dark:hover:text-white'
+                ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)]'
+                : 'bg-white dark:bg-black text-neutral-600 dark:text-neutral-400 border-black/20 dark:border-white/20 hover:border-black dark:hover:border-white'
             }`}
           >
-            <Film className="w-3.5 h-3.5 text-purple-500" />
-            <span>Video GIF</span>
+            <span className="flex items-center gap-1">
+              <Film className="w-3.5 h-3.5" />
+              <span>GIF</span>
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('emojis')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
               activeTab === 'emojis'
-                ? 'bg-white dark:bg-neutral-700 text-black dark:text-white shadow-xs'
-                : 'text-neutral-500 hover:text-black dark:hover:text-white'
+                ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,1)]'
+                : 'bg-white dark:bg-black text-neutral-600 dark:text-neutral-400 border-black/20 dark:border-white/20 hover:border-black dark:hover:border-white'
             }`}
           >
-            <Smile className="w-3.5 h-3.5 text-amber-500" />
-            <span>Emoji</span>
+            <span className="flex items-center gap-1">
+              <Smile className="w-3.5 h-3.5" />
+              <span>Emoji</span>
+            </span>
           </button>
         </div>
 
         <button
           onClick={onClose}
-          className="p-1 text-neutral-400 hover:text-black dark:hover:text-white rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+          className="w-7 h-7 rounded-full border border-black dark:border-white bg-white dark:bg-black flex items-center justify-center text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+          title="Tutup"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5 stroke-[2.5]" />
         </button>
       </div>
 
       {/* Main Content Area */}
-      <div className="h-72 overflow-y-auto p-2 select-none">
+      <div className="h-72 overflow-y-auto p-2 select-none bg-white dark:bg-black">
         {/* TAB 1: STICKERS */}
         {activeTab === 'stickers' && (
           <div>
             {loading ? (
-              <div className="h-64 flex flex-col items-center justify-center gap-2 text-neutral-400 text-xs">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              <div className="h-64 flex flex-col items-center justify-center gap-2 text-neutral-500 text-xs">
+                <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Memuat koleksi stiker...</span>
               </div>
             ) : (
@@ -244,7 +250,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                       onSelectSticker(stk);
                       onClose();
                     }}
-                    className="group relative aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-transform active:scale-90 cursor-pointer"
+                    className="group relative aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-transparent hover:border-black/30 dark:hover:border-white/30 transition-transform active:scale-90 cursor-pointer"
                     title={stk.alt}
                   >
                     {stk.type === 'video' ? (
@@ -264,7 +270,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                         loading="lazy"
                       />
                     )}
-                    <span className="absolute bottom-1 right-1 text-[10px] opacity-0 group-hover:opacity-100 bg-black/60 text-white rounded-xs px-0.5">
+                    <span className="absolute bottom-1 right-1 text-[10px] opacity-0 group-hover:opacity-100 bg-black text-white px-1 rounded-xs">
                       {stk.alt}
                     </span>
                   </button>
@@ -284,7 +290,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                   onSelectSticker(stk);
                   onClose();
                 }}
-                className="group relative aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-transform active:scale-90 cursor-pointer"
+                className="group relative aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-transparent hover:border-black/30 dark:hover:border-white/30 transition-transform active:scale-90 cursor-pointer"
                 title={stk.alt}
               >
                 <img
@@ -305,7 +311,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
               <button
                 key={emoji}
                 onClick={() => onSelectEmoji(emoji)}
-                className="w-9 h-9 flex items-center justify-center text-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg active:scale-75 transition-transform cursor-pointer"
+                className="w-9 h-9 flex items-center justify-center text-xl hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg active:scale-75 transition-transform cursor-pointer"
               >
                 {emoji}
               </button>
@@ -316,15 +322,15 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
 
       {/* Bottom Sticker Sets Bar (when on stickers tab) */}
       {activeTab === 'stickers' && stickerSets.length > 0 && (
-        <div className="border-t border-neutral-100 dark:border-neutral-800 p-1.5 flex items-center gap-1.5 overflow-x-auto bg-neutral-50/50 dark:bg-neutral-900/50">
+        <div className="border-t-2 border-black dark:border-white p-2 flex items-center gap-1.5 overflow-x-auto bg-neutral-100 dark:bg-neutral-900">
           {stickerSets.map((s) => (
             <button
               key={s.id}
               onClick={() => handleSelectSet(s)}
-              className={`px-2 py-1 text-[11px] rounded-lg truncate shrink-0 max-w-[120px] font-medium transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 text-[11px] rounded-lg truncate shrink-0 max-w-[120px] font-bold border transition-colors cursor-pointer ${
                 selectedSet?.id === s.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-neutral-200/50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                  ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                  : 'bg-white dark:bg-black text-neutral-600 dark:text-neutral-400 border-black/20 dark:border-white/20 hover:border-black dark:hover:border-white'
               }`}
             >
               {s.title}
